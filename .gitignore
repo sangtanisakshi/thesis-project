@@ -1,5 +1,6 @@
 data/
 CTGAN/.github
+CTGAN/examples
 CTGAN/.gitignore
 CTGAN/AUTHORS.rst
 CTGAN/CONTRIBUTING.rst

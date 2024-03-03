@@ -1,0 +1,9 @@
+- Move data cleaning pynb to python file
+- Know the data formats of all 3 models (input/output)
+    - test input output
+    - write data adapters for each model
+- Integrate wandb
+- Have a cli and sh file for all 3
+- use wandb/hydra to log cli inputs and possibly do hyperparametertuning
+- write model outputs to a common data format
+- (clean data), get the outputs and then run evaluations in some notebook

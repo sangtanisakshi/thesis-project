@@ -1,0 +1,9 @@
+# Dataset
+
+- custom function for data loading, model.py:811  
+  - separate label and feature file  
+  - handles csv + pickle
+  - everything needs to be an integer or float
+  - input_height, super weird parameter
+    - if deviating from column size it pads with repeating columns
+    - set exactly as column size of dataset

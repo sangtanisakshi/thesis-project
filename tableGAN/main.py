@@ -9,11 +9,11 @@ import datetime
 import tensorflow as tf
 import sys
 
-from model import TableGan
+# from model import TableGan
 
-from utils import pp, generate_data, show_all_variables
+# from utils import pp, generate_data, show_all_variables
 
-flags = tf.app.flags
+flags = tf.compat.v1.flags
 
 flags.DEFINE_integer("epoch", 10, "Epoch to train [25]")
 
@@ -59,7 +59,7 @@ FLAGS = flags.FLAGS
 
 def main(_):
     a = datetime.datetime.now()
-
+    
     if FLAGS.input_width is None:
         FLAGS.input_width = FLAGS.input_height
     if FLAGS.output_width is None:
@@ -176,4 +176,4 @@ def main(_):
 
 
 if __name__ == '__main__':
-    tf.app.run()
+    tf.compat.v1.app.run()

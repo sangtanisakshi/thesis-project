@@ -13,7 +13,7 @@ from time import gmtime, strftime
 from six.moves import xrange
 
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
+# import tensorflow.contrib.slim as slim # needs tensorflow 1.3 and only for one function, so we ignore it
 import os
 import matplotlib.pyplot as plt
 
@@ -30,12 +30,12 @@ get_stddev = lambda x, k_h, k_w: 1 / math.sqrt(k_w * k_h * x.get_shape()[-1])
 DATASETS = ('LACity', 'Health', 'Adult', 'Ticket')
 
 
-def padding_duplicating(data, row_size):
+def padding_duplicating(data, column_out_size):
     arr_data = np.array(data.values.tolist())
 
     col_num = arr_data.shape[1]
 
-    npad = ((0, 0), (0, row_size - col_num))
+    npad = ((0, 0), (0, column_out_size - col_num))
 
     # PAdding with zero
     arr_data = np.pad(arr_data, pad_width=npad, mode='constant', constant_values=0.)
@@ -53,9 +53,9 @@ def reshape(data, dim):
     return data
 
 
-def show_all_variables():
-    model_vars = tf.trainable_variables()
-    slim.model_analyzer.analyze_vars(model_vars, print_info=True)
+# def show_all_variables():
+#     model_vars = tf.trainable_variables()
+#     slim.model_analyzer.analyze_vars(model_vars, print_info=True)
 
 
 def get_image(image_path, input_height, input_width,

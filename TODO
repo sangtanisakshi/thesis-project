@@ -1,4 +1,5 @@
-- Move data cleaning pynb to python file
+- Move data cleaning pynb to python file:
+    - sample the data 
 - Know the data formats of all 3 models (input/output)
     - test input output
     - write data adapters for each model
@@ -7,3 +8,8 @@
 - use wandb/hydra to log cli inputs and possibly do hyperparametertuning
 - write model outputs to a common data format
 - (clean data), get the outputs and then run evaluations in some notebook
+
+
+TODO for the data:
+- use data first without the date column and see how the results are 
+- check results with date column (specifically CTGAN)

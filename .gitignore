@@ -5,4 +5,4 @@ CTGAN/.gitignore
 CTGAN/AUTHORS.rst
 CTGAN/CONTRIBUTING.rst
 tableGAN/data
-thesisGAN/input/
+thesisGAN/input

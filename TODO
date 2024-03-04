@@ -1,7 +1,5 @@
 - Move data cleaning pynb to python file:
     - sample the data 
-## DONE
-
 - Know the data formats of all 3 models (input/output)
     - test input output
     - write data adapters for each model

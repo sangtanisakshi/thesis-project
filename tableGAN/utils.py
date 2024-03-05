@@ -11,6 +11,7 @@ import scipy.misc
 import numpy as np
 from time import gmtime, strftime
 from six.moves import xrange
+import moviepy as mpy
 
 import tensorflow as tf
 # import tensorflow.contrib.slim as slim # needs tensorflow 1.3 and only for one function, so we ignore it

@@ -1,7 +1,11 @@
 - Move data cleaning pynb to python file:
     - sample the data 
+## DONE
+
 - Know the data formats of all 3 models (input/output)
     - test input output
+## TGAN has OOM issues
+## TableGAN preprocess issues
     - write data adapters for each model
 - Integrate wandb
 - Have a cli and sh file for all 3

@@ -108,10 +108,10 @@ def main(file_path):
     df_sub.reset_index(drop=True, inplace=True)
     
     # Save the cleaned data to 2 new files
-    df.to_csv('input/clean_data_all.csv', index=True)
+    df.to_csv('input/clean_data_all.csv')
     print("Preprocessing done. Cleaned entire data saved to input/cleaned_data_all.csv")
     
-    df_sub.to_csv('input/clean_data_sub.csv', index=True)
+    df_sub.to_csv('input/clean_data_sub.csv')
     print("Preprocessing done. Subset data saved to input/cleaned_data_sub.csv")
     
     # Drop columns that are not needed and drop duplicates
@@ -120,7 +120,7 @@ def main(file_path):
     df_sub.reset_index(drop=True, inplace=True)
 
     # Save the cleaned data to a new file
-    df_sub.to_csv('input/sub_data_temporal.csv', index=True)
+    df_sub.to_csv('input/sub_data_temporal.csv')
     print("Preprocessing done. Temporal subset data saved to inputt/sub_data_temporal.csv")
      
     # Remove the date column, drop more duplicates and save the file
@@ -128,7 +128,7 @@ def main(file_path):
     df_sub.drop_duplicates(inplace=True)
     df_sub.reset_index(drop=True, inplace=True)
     
-    df_sub.to_csv('input/sub_data_non_temporal.csv', index=True)
+    df_sub.to_csv('input/sub_data_non_temporal.csv')
     print("Preprocessing done. Non temporal subset data saved to input/sub_data_non_temporal.csv")
     
 if __name__ == "__main__":

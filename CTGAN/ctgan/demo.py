@@ -1,41 +1,34 @@
-# from ctgan import CTGAN
-# from ctgan import load_demo
-
-# real_data = load_demo()
-
-# # Names of the columns that are discrete
-# discrete_columns = [
-#     'workclass',
-#     'education',
-#     'marital-status',
-#     'occupation',
-#     'relationship',
-#     'race',
-#     'sex',
-#     'native-country',
-#     'income'
-# ]
-
-# ctgan = CTGAN(epochs=10)
-# ctgan.fit(real_data, discrete_columns)
-
-# # Create synthetic data
-# synthetic_data = ctgan.sample(1000)
-
-# print(synthetic_data.head(10))
-
 from ctgan import CTGAN
 import pandas as pd
+import torch
 
-real_data = pd.read_csv('thesisGAN/input/clean_data_sub.csv')
-real_data = real_data.drop(columns=['date_first_seen','flags','attack_description','Unnamed: 0','flows','src_ip_addr','src_pt','dst_ip_addr','dst_pt','attack_id'])
-real_data["packets"] = real_data["packets"].astype('float64')
+if torch.cuda.is_available():
+    print("Using GPU")
+    device = torch.device("cuda")
+else:
+    print("Using CPU")
+    device = torch.device("cpu")
 
-print(real_data.info())
+print(torch.cuda.get_device_name(0))
 
-# Names of the columns that are discrete
+real_data = pd.read_csv('thesisGAN/input/preprocessed.csv')
+
+# Split the data into train test and val
+train_data = real_data.sample(frac=0.7, random_state=42)
+test_data = real_data.drop(train_data.index).sample(frac=0.66, random_state=42)
+val_data = real_data.drop(train_data.index).drop(test_data.index)  
+
+train_data.to_csv('thesisGAN/input/train_data.csv', index=False)
+test_data.to_csv('thesisGAN/input/test_data.csv', index=False)
+val_data.to_csv('thesisGAN/input/val_data.csv', index=False)
+
+#Names of the columns that are discrete
 discrete_columns = [
+'label',
+'attack_type',
+'attack_id',
 'proto',
+'day_of_week',
 'tcp_con',
 'tcp_ech',
 'tcp_urg',
@@ -43,18 +36,14 @@ discrete_columns = [
 'tcp_psh',
 'tcp_rst',
 'tcp_syn',
-'tcp_fin',
-'tos',
-'label',
-'attack_type'
-]
+'tcp_fin']
 
-ctgan = CTGAN(epochs=10)
+ctgan = CTGAN(epochs=1)
 
-ctgan.fit(real_data, discrete_columns)
+ctgan.fit(train_data, discrete_columns)
 
 # Create synthetic data
 synthetic_data = ctgan.sample(1000)
-print(synthetic_data.head(10))
-synthetic_data.to_csv('thesisGAN/model-output/synthetic_data.csv', index=False)
+print(synthetic_data.head(20))
+synthetic_data.to_csv('thesisGAN/model-outputs/synthetic_data.csv', index=False)
 print("Synthetic data saved. Check the output folder.")

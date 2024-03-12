@@ -22,7 +22,7 @@ print(torch.cuda.get_device_name(0))
 # test_data.to_csv('thesisGAN/input/test_data.csv', index=False)
 # val_data.to_csv('thesisGAN/input/val_data.csv', index=False)
 
-real_data = pd.read_csv('thesisGAN/input/test_data.csv')
+real_data = pd.read_csv('thesisGAN/input/test_data.csv')[:15000]
 
 #Names of the columns that are discrete
 discrete_columns = [

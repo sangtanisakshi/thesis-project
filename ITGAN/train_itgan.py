@@ -1,6 +1,7 @@
 import warnings, datetime, argparse
 warnings.filterwarnings(action='ignore')
 
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -384,7 +385,7 @@ if __name__ == "__main__":
     # python train_itgan.py --data --random_num --GPU_NUM --emb_dim --en_dim --d_dim --d_dropout --d_leaky --layer_type --hdim_factor --nhidden --likelihood_coef --gt --dt --lt --kinetic
     parser = argparse.ArgumentParser('ITGAN')
     parser.add_argument('--data', type=str, default = 'adult')
-    parser.add_argument('--epochs',type =int, default = 300)  
+    parser.add_argument('--epochs',type =int, default = 2)  
     parser.add_argument('--random_num', type=int, default = 777)
     # parser.add_argument('--test_name', type=str, default = 'itgan')
     parser.add_argument('--GPU_NUM', type = int, default = 0)
@@ -513,11 +514,10 @@ if __name__ == "__main__":
     arg["save_arg"] = arg.copy()
     mkdir(save_loc, data)
     
-    with open(save_loc + "/param/"+ data + "/" + test_name + '.txt',"a") as f:
+    with open(save_loc + "/param/"+ data + "/" + test_name + '.txt',"w") as f:
         f.write(data + " AEGANSynthesizer" + "\n")
         f.write(str(arg) + "\n")
         f.write(str(G_args) + "\n")
  
-
     a,b = benchmark(AEGANSynthesizer, arg, data)
     print(a, b)

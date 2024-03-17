@@ -16,6 +16,7 @@ CTAB-GAN-Plus/model/pipeline/__pycache__/
 CTAB-GAN-Plus/model/privacy_utils/__pycache__/
 CTAB-GAN-Plus/model/synthesizer/__pycache__/
 CTAB-GAN-Plus/.ipynb_checkpoints/epsilon_calculation-checkpoint.ipynb
+CTAB-GAN-Plus/Real_Datasets/
 ITGAN/synthesizers/__pycache__/
 ITGAN/synthesizers/ffjord/__pycache__/
 ITGAN/synthesizers/ffjord/layers/__pycache__/

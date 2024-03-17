@@ -10,14 +10,17 @@ func_dict = {
 }
 
 def mkdir(save_loc,data_name):
-    if not os.path.isdir(save_loc+"/param/" + data_name):
-        os.mkdir(save_loc+"/param/" + data_name)
-    if not os.path.isdir(save_loc+"/runs/" + data_name):
-        os.mkdir(save_loc+"/runs/" + data_name)
-    if not os.path.isdir(save_loc+"/save_model/" + data_name):
-        os.mkdir(save_loc+"/save_model/" + data_name)
+     
+    print("Save Location : ", save_loc)
+    if not os.path.isdir(save_loc+ "/param/" + data_name):
+        print("Make Directory : ", save_loc+ "/param/" + data_name)
+        os.makedirs((save_loc+"/param/"+data_name),exist_ok=True)
+    if not os.path.isdir(save_loc+"/runs/"+data_name):
+        os.makedirs((save_loc+"/runs/"+data_name),exist_ok=True)
+    if not os.path.isdir(save_loc+"/save_model/"+data_name):
+        os.makedirs((save_loc+"/save_model/"+data_name),exist_ok=True)
     if not os.path.isdir(save_loc+"/score_info/" + data_name):
-        os.mkdir(save_loc+"/score_info/" + data_name)
+        os.makedirs((save_loc+"/score_info/"+data_name),exist_ok=True)
 
 def fix_random_seed(random_num):
     torch.manual_seed(random_num)

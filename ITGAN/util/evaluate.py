@@ -3,7 +3,7 @@ import logging
 
 import numpy as np
 import pandas as pd
-from pomegranate import BayesianNetwork
+#from pomegranate import BayesianNetwork
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
@@ -375,37 +375,37 @@ def _mapper(data, metadata):
     return data_t
 
 
-def _evaluate_bayesian_likelihood(train, test, metadata):
-    LOGGER.info('Evaluating using Bayesian Likelihood.')
-    structure_json = json.dumps(metadata['structure'])
-    bn1 = BayesianNetwork.from_json(structure_json)
+# def _evaluate_bayesian_likelihood(train, test, metadata):
+#     LOGGER.info('Evaluating using Bayesian Likelihood.')
+#     structure_json = json.dumps(metadata['structure'])
+#     bn1 = BayesianNetwork.from_json(structure_json)
 
-    train_mapped = _mapper(train, metadata)
-    test_mapped = _mapper(test, metadata)
-    prob = []
-    for item in train_mapped:
-        try:
-            prob.append(bn1.probability(item))
-        except Exception:
-            prob.append(1e-8)
+#     train_mapped = _mapper(train, metadata)
+#     test_mapped = _mapper(test, metadata)
+#     prob = []
+#     for item in train_mapped:
+#         try:
+#             prob.append(bn1.probability(item))
+#         except Exception:
+#             prob.append(1e-8)
 
-    l1 = np.mean(np.log(np.asarray(prob) + 1e-8))
+#     l1 = np.mean(np.log(np.asarray(prob) + 1e-8))
 
-    bn2 = BayesianNetwork.from_structure(train_mapped, bn1.structure)
-    prob = []
+#     bn2 = BayesianNetwork._from_structure(train_mapped, bn1.structure)
+#     prob = []
 
-    for item in test_mapped:
-        try:
-            prob.append(bn2.probability(item))
-        except Exception:
-            prob.append(1e-8)
+#     for item in test_mapped:
+#         try:
+#             prob.append(bn2.probability(item))
+#         except Exception:
+#             prob.append(1e-8)
 
-    l2 = np.mean(np.log(np.asarray(prob) + 1e-8))
-    return pd.DataFrame([{
-        "name": "Bayesian Likelihood",
-        "syn_likelihood": l1,
-        "test_likelihood": l2,
-    }])
+#     l2 = np.mean(np.log(np.asarray(prob) + 1e-8))
+#     return pd.DataFrame([{
+#         "name": "Bayesian Likelihood",
+#         "syn_likelihood": l1,
+#         "test_likelihood": l2,
+#     }])
 
 def _compute_distance(train, syn, metadata, sample=300):
     mask_d = np.zeros(len(metadata['columns']))
@@ -433,7 +433,7 @@ def _compute_distance(train, syn, metadata, sample=300):
 
 
 _EVALUATORS = {
-    'bayesian_likelihood': _evaluate_bayesian_likelihood,
+    #'bayesian_likelihood': _evaluate_bayesian_likelihood,
     'binary_classification': _evaluate_binary_classification,
     'gaussian_likelihood': _evaluate_gmm_likelihood,
     'multiclass_classification': _evaluate_multi_classification,

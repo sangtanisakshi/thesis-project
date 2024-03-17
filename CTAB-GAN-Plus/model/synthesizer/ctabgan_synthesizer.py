@@ -8,7 +8,7 @@ from torch.nn import functional as F
 from torch.nn import (Dropout, LeakyReLU, Linear, Module, ReLU, Sequential,
 Conv2d, ConvTranspose2d, Sigmoid, init, BCELoss, CrossEntropyLoss,SmoothL1Loss,LayerNorm)
 from model.synthesizer.transformer import ImageTransformer,DataTransformer
-from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent
+from model.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -346,7 +346,7 @@ class CTABGANSynthesizer:
                  num_channels=64,
                  l2scale=1e-5,
                  batch_size=500,
-                 epochs=150):
+                 epochs=5):
                  
 
         self.random_dim = random_dim
@@ -369,20 +369,21 @@ class CTABGANSynthesizer:
                 target_index = train_data.columns.get_loc(type[problem_type])
 
         self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general, non_categorical_list=non_categorical)
+        print("Data transformed, now fitting the model")
         self.transformer.fit() 
         train_data = self.transformer.transform(train_data.values)
         data_sampler = Sampler(train_data, self.transformer.output_info)
         data_dim = self.transformer.output_dim
         self.cond_generator = Cond(train_data, self.transformer.output_info)
         		
-        sides = [4, 8, 16, 24, 32, 64]
+        sides = [4, 8, 16, 24, 32, 64, 128, 256]
         col_size_d = data_dim + self.cond_generator.n_opt
         for i in sides:
             if i * i >= col_size_d:
                 self.dside = i
                 break
         
-        sides = [4, 8, 16, 24, 32, 64]
+        sides = [4, 8, 16, 24, 32, 64, 128, 256]
         col_size_g = data_dim
         for i in sides:
             if i * i >= col_size_g:

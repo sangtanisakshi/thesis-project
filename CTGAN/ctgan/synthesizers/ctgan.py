@@ -425,6 +425,7 @@ class CTGAN(BaseSynthesizer):
             generator_loss = loss_g.detach().cpu().item()
             discriminator_loss = loss_d.detach().cpu().item()
 
+            print("Epoch: ", i ,"\nGenerator Loss: ", generator_loss, "\nDiscriminator Loss: ", discriminator_loss)
             epoch_loss_df = pd.DataFrame({
                 'Epoch': [i],
                 'Generator Loss': [generator_loss],

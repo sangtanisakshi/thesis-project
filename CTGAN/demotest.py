@@ -22,7 +22,7 @@ print(torch.cuda.get_device_name(0))
 # test_data.to_csv('thesisGAN/input/test_data.csv', index=False)
 # val_data.to_csv('thesisGAN/input/val_data.csv', index=False)
 
-real_data = pd.read_csv('thesisGAN/input/test_data.csv')
+real_data = pd.read_csv('thesisGAN/input/train_data.csv')
 
 #Names of the columns that are discrete
 discrete_columns = [
@@ -40,12 +40,15 @@ discrete_columns = [
 'tcp_syn',
 'tcp_fin']
 
-ctgan = CTGAN(epochs=1)
+real_data.info()
+
+ctgan = CTGAN(epochs=10)
 
 ctgan.fit(real_data, discrete_columns)
 
 # Create synthetic data
-synthetic_data = ctgan.sample(1000)
+print("Model training complete. Sampling data...")
+synthetic_data = ctgan.sample(5000)
 print(synthetic_data.head(20))
-synthetic_data.to_csv('thesisGAN/model-outputs/test_synthetic_data.csv', index=False)
+synthetic_data.to_csv('thesisGAN/model-outputs/train_synthetic_data.csv', index=False)
 print("Synthetic data saved. Check the output folder.")

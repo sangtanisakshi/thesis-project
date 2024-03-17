@@ -141,8 +141,8 @@ def _evaluate_cluster(train, test, metadata, evaluate):
             model_kwargs['n_clusters'] =  num_of_cluster
         model_repr = model_class.__name__
         model = model_class(**model_kwargs)
-        train = train.astype(np.float)
-        test =  test.astype(np.float)
+        train = train.astype(np.float64)
+        test =  test.astype(np.float64)
         if model_repr == "KMeans":
             model_repr = "KMeans" + str(num_of_cluster)
             model.fit(train)

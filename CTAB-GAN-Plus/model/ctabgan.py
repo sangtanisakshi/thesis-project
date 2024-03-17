@@ -4,7 +4,7 @@ Generative model training algorithm based on the CTABGANSynthesiser
 """
 import pandas as pd
 import time
-from model.pipeline.data_preparation import DataPrep
+from model.data_preparation import DataPrep
 from model.synthesizer.ctabgan_synthesizer import CTABGANSynthesizer
 
 import warnings
@@ -30,7 +30,7 @@ class CTABGAN():
 
         self.__name__ = 'CTABGAN'
               
-        self.synthesizer = CTABGANSynthesizer()
+        self.synthesizer = CTABGANSynthesizer(epochs=1)
         self.raw_df = pd.read_csv(raw_csv_path)
         self.test_ratio = test_ratio
         self.categorical_columns = categorical_columns
@@ -53,7 +53,7 @@ class CTABGAN():
 
     def generate_samples(self):
         
-        sample = self.synthesizer.sample(len(self.raw_df)) 
+        sample = self.synthesizer.sample(20) 
         sample_df = self.data_prep.inverse_prep(sample)
         
         return sample_df

@@ -336,6 +336,11 @@ class AEGANSynthesizer(BaseSynthesizer):
 if __name__ == "__main__":
     ################################################ Default Value #######################################################
     ## basic info
+    
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    os.chdir(dname)
+    print(os.getcwd())
     data = "adult" ; test_name = "iGAN"
     rtol = 1e-3 ; atol = 1e-3; batch_size = 2000 ; epochs = 300 ; random_num = 777 ; GPU_NUM = 0 ; save_loc= "last_result"
     G_model= Generator; embedding_dim= 128; G_lr= 2e-4; G_beta= (0.5, 0.9); G_l2scale= 1e-6 ; G_l1scale = 0 ; G_learning_term = 3 ; 

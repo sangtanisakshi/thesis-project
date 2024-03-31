@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from ctgan.data_transformer import DataTransformer
-from ctgan.synthesizers.base import BaseSynthesizer, random_state
+from synthesizers.base import BaseSynthesizer, random_state
 
 
 class Encoder(Module):

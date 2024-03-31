@@ -51,7 +51,7 @@ _MODELS = {
             'class': XGBClassifier,
             'kwargs': {
                 'max_depth': 3,
-                'eval_metric': 'multi:softprob'
+                'objective': 'multi:softprob'
 
             }
         },
@@ -68,7 +68,7 @@ _MODELS = {
             'class': XGBClassifier,
             'kwargs': {
                 'max_depth': 3,
-                'eval_metric': 'multi:softprob'
+                'objective': 'multi:softprob'
             }
         },
         {

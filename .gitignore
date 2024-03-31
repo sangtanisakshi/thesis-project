@@ -26,3 +26,5 @@ ITGAN/synthesizers/ffjord/layers/wrappers/__pycache__/
 ITGAN/util/__pycache__/
 ITGAN/synthesizers/ffjord/layers/diffeq_layers/__pycache__/
 ITGAN/last_result/
+wandb/
+CTAB-GAN-Plus/Fake_Datasets/

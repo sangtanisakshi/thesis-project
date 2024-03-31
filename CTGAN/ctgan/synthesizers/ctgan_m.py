@@ -5,13 +5,16 @@ import warnings
 import numpy as np
 import pandas as pd
 import torch
+import wandb
+
+from torchinfo import summary
 from torch import optim
 from torch.nn import BatchNorm1d, Dropout, LeakyReLU, Linear, Module, ReLU, Sequential, functional
 from tqdm import tqdm
 
 from ctgan.data_sampler import DataSampler
 from ctgan.data_transformer import DataTransformer
-from ctgan.synthesizers.base import BaseSynthesizer, random_state
+from synthesizers.base import BaseSynthesizer, random_state
 
 
 class Discriminator(Module):
@@ -299,12 +302,12 @@ class CTGAN(BaseSynthesizer):
                  'in a future version. Please pass `epochs` to the constructor instead'),
                 DeprecationWarning
             )
-
+        print(f"Fitting Data Transformer with {len(discrete_columns)} discrete columns")
         self._transformer = DataTransformer()
         self._transformer.fit(train_data, discrete_columns)
 
         train_data = self._transformer.transform(train_data)
-
+        print("Data Transformer fitted. Training the model now...")
         self._data_sampler = DataSampler(
             train_data,
             self._transformer.output_info_list,
@@ -317,12 +320,16 @@ class CTGAN(BaseSynthesizer):
             self._generator_dim,
             data_dim
         ).to(self._device)
+        
+        print(summary(self._generator))
 
         discriminator = Discriminator(
             data_dim + self._data_sampler.dim_cond_vec(),
             self._discriminator_dim,
             pac=self.pac
         ).to(self._device)
+        
+        print(summary(discriminator))
 
         optimizerG = optim.Adam(
             self._generator.parameters(), lr=self._generator_lr, betas=(0.5, 0.9),
@@ -345,7 +352,9 @@ class CTGAN(BaseSynthesizer):
             epoch_iterator.set_description(description.format(gen=0, dis=0))
 
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
+
         for i in epoch_iterator:
+            print(f'Epoch {i} of {epochs}')
             for id_ in range(steps_per_epoch):
 
                 for n in range(self._discriminator_steps):
@@ -427,10 +436,12 @@ class CTGAN(BaseSynthesizer):
 
             print("Epoch: ", i ,"\nGenerator Loss: ", generator_loss, "\nDiscriminator Loss: ", discriminator_loss)
             epoch_loss_df = pd.DataFrame({
-                'Epoch': [i],
+                'Epoch': i,
                 'Generator Loss': [generator_loss],
                 'Discriminator Loss': [discriminator_loss]
             })
+            
+            wandb.log({'Epoch': [i], 'Generator Loss': generator_loss, 'Discriminator Loss': discriminator_loss})
             if not self.loss_values.empty:
                 self.loss_values = pd.concat(
                     [self.loss_values, epoch_loss_df]

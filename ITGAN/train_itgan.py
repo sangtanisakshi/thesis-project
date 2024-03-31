@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import torch.utils.data
 from torch.nn import functional as F
-
+import wandb
 from synthesizers.AEModel import Encoder, Decoder, loss_function
 from synthesizers.GeneratorModel import Generator, argument
 from synthesizers.DiscriminatorModel import Discriminator
@@ -21,12 +21,6 @@ from util.model_test import mkdir, fix_random_seed, model_save_dict
 from util.data import load_dataset
 from tensorboardX import SummaryWriter
 from util.benchmark import benchmark
-
-artificial_data = ["alarm", "asia", "child", "grid", "gridr", "insurance", "ring"]
-short_real_data = ["adult", "news", "cabs", "king", "airbnb", "bank2", "safe"]
-other_real_data = ["census", "covertype", "intrusion"]
-
-
 
 class iter_schedular:
     def __init__(self):
@@ -148,7 +142,7 @@ class AEGANSynthesizer(BaseSynthesizer):
         std_z = mean_z + 1
         print("epochs = ", self.epochs) 
         for i in range(self.epochs):
-            
+            wandb.log({"epoch": i})
             for _, data in enumerate(loader): 
                 iter += 1
 
@@ -170,7 +164,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
                     self.writer.add_scalar('losses/AE_loss', loss_ae, iter_s.ae_iter)
                     iter_s.ae_iter += 1
-
+                    wandb.log({"AE_loss": loss_ae})
                 ######## AutoEncoder Learning Gan loss #########
                 if term_check(self.ae_learning_term_g, iter):
                     fakez = torch.normal(mean=mean_z, std=std_z)
@@ -196,7 +190,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerEn.step()
                     self.writer.add_scalar('losses/AE_G2_loss', loss_ae_g2, iter_s.ae_g_iter)
                     iter_s.ae_g_iter += 1
-
+                    wandb.log({"AE_G1_loss": loss_ae_g1, "AE_G2_loss": loss_ae_g2})
                 ######## update inner discriminator #########
                 if term_check(self.D_learning_term, iter):
                     real_h = encoder(real)       
@@ -212,7 +206,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerD.step()
                     self.writer.add_scalar('losses/D1_loss', loss_d, iter_s.D_iter)
                     iter_s.D_iter += 1
-                
+                    wandb.log({"D1_loss": loss_d})
                 
 
                 ######### update generator with inner discri W-GAN Loss ##########
@@ -229,7 +223,8 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerG.step()
                     self.writer.add_scalar('losses/G1_loss', loss_g, iter_s.G_iter)
                     iter_s.G_iter += 1
-
+                    wandb.log({"G1_loss": loss_g})
+                    
                     if self.kinetic_learn_every_G_learn:
                         real_h = encoder(real) # 수정
                         likelihood_loss, likelihood_reg_loss = self.generator.compute_likelihood_loss(real_h)
@@ -239,7 +234,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                             optimizerG.step()
                             self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                             iter_s.G_liker_iter += 1
-
+                            wandb.log({"likelihood_reg_loss": likelihood_reg_loss})
                 
 
                 ######## update generator with Likelihood Loss ##########
@@ -266,11 +261,12 @@ class AEGANSynthesizer(BaseSynthesizer):
                         optimizerG.step()
 
                     self.writer.add_scalar('losses/likelihood_loss', likelihood_loss, iter_s.G_like_iter)
+                    wandb.log({"likelihood_loss": likelihood_loss})
                     iter_s.G_like_iter += 1
                     if (likelihood_reg_loss is not None):
                         self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                         iter_s.G_liker_iter += 1
-            
+                        wandb.log({"likelihood_reg_loss": likelihood_reg_loss})
                                         
 
     def sample(self, n, z_vector = False):
@@ -341,7 +337,8 @@ if __name__ == "__main__":
     dname = os.path.dirname(abspath)
     os.chdir(dname)
     print(os.getcwd())
-    data = "adult" ; test_name = "iGAN"
+    
+    data = "malware" ; test_name = "iGAN"
     rtol = 1e-3 ; atol = 1e-3; batch_size = 2000 ; epochs = 300 ; random_num = 777 ; GPU_NUM = 0 ; save_loc= "last_result"
     G_model= Generator; embedding_dim= 128; G_lr= 2e-4; G_beta= (0.5, 0.9); G_l2scale= 1e-6 ; G_l1scale = 0 ; G_learning_term = 3 ; 
     likelihood_coef = 0 ; likelihood_learn_start_score = None ; likelihood_learn_term = 6 ; kinetic_learn_every_G_learn = False
@@ -389,8 +386,9 @@ if __name__ == "__main__":
     ################################################ Default Value #######################################################
     # python train_itgan.py --data --random_num --GPU_NUM --emb_dim --en_dim --d_dim --d_dropout --d_leaky --layer_type --hdim_factor --nhidden --likelihood_coef --gt --dt --lt --kinetic
     parser = argparse.ArgumentParser('ITGAN')
-    parser.add_argument('--data', type=str, default = 'adult')
-    parser.add_argument('--epochs',type =int, default = 2)  
+    parser.add_argument('-n', '--run', type=str, help= 'Run name', default="ITGAN_test")
+    parser.add_argument('--data', type=str, default = 'malware')
+    parser.add_argument('--epochs',type =int, default = 10)  
     parser.add_argument('--random_num', type=int, default = 777)
     # parser.add_argument('--test_name', type=str, default = 'itgan')
     parser.add_argument('--GPU_NUM', type = int, default = 0)
@@ -414,11 +412,9 @@ if __name__ == "__main__":
     parser.add_argument('--kinetic_every_learn', type=int, default = 0) # if 0 apply kinetic regularizer every G likelihood training, else every all G training
     
     
-
-
     arg_of_parser = parser.parse_args()
     data = arg_of_parser.data
-    epochs = arg_of_parser.epochs #수정
+    epochs = arg_of_parser.epochs 
     random_num = arg_of_parser.random_num
     GPU_NUM = arg_of_parser.GPU_NUM
     
@@ -485,7 +481,6 @@ if __name__ == "__main__":
             "data_name": data,
             "G_model":G_model,
             "embedding_dim":embedding_dim,
-            "G_args" : argument(G_args, embedding_dim),
             "G_lr":G_lr,
             "G_beta":G_beta,
             "G_l2scale":G_l2scale,
@@ -515,8 +510,13 @@ if __name__ == "__main__":
             "decompress_dims":decompress_dims,
             "L_func":L_func,
             "loss_factor":loss_factor}
+
+    wandb.init(project='masterthesis', name=arg_of_parser.run, config=arg)
+    # Log the G args as a table
+    wandb.config.update(G_args)
     
-    arg["save_arg"] = arg.copy()
+    arg["G_args"] = argument(G_args, embedding_dim)
+    arg["save_arg"] = arg.copy()   
     mkdir(save_loc, data)
     
     with open(save_loc + "/param/"+ data + "/" + test_name + '.txt',"w") as f:

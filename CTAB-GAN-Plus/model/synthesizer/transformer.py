@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.mixture import BayesianGaussianMixture
+import json
 
 class DataTransformer():
     
@@ -55,10 +56,30 @@ class DataTransformer():
                 })            
 
         return meta
+    
+    def get_metadata_json(self, path_to_json: str):
+        with open(path_to_json, "r") as f:
+            json_data = json.load(f)
+            
+        metadata = json_data['columns']
+        metadata_out = []
+        for col in self.train_data.columns:
+            for col_meta in metadata:
+                if col_meta['name'] == col:
+                    if col == "attack_id":
+                        col_meta['type'] = "continuous"
+                        col_meta['min'] = 0
+                        col_meta['max'] = 17
+                        col_meta['size'] = None
+                        col_meta['i2s'] = None
+                    metadata_out.append(col_meta)
+                    
+        
+        return metadata_out
 
     def fit(self):
         data = self.train_data.values
-        self.meta = self.get_metadata()
+        self.meta = self.get_metadata_json("../ITGAN/util/data/val_data.json")
         model = []
         self.ordering = []
         self.output_info = []
@@ -292,8 +313,9 @@ class DataTransformer():
             else:
                 self.ordering.append(None)
                 col_t = np.zeros([len(data), info['size']])
-                idx = list(map(info['i2s'].index, current))
-                col_t[np.arange(len(data)), idx] = 1
+                numeric_idx = list(map(range(info['size']).index, current))
+                # idx = list(map(info['i2s'].index, current))
+                col_t[np.arange(len(data)), numeric_idx] = 1
                 values.append(col_t)
                 
         return np.concatenate(values, axis=1)
@@ -395,7 +417,8 @@ class DataTransformer():
                 current = data[:, st:st + info['size']]
                 st += info['size']
                 idx = np.argmax(current, axis=1)
-                data_t[:, id_] = list(map(info['i2s'].__getitem__, idx))
+                # data_t[:, id_] = list(map(info['i2s'].__getitem__, idx))
+                data_t[:, id_] = idx
             
             
         invalid_ids = np.unique(np.array(invalid_ids)) 

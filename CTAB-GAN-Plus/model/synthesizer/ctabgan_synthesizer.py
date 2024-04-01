@@ -573,6 +573,7 @@ class CTABGANSynthesizer:
 
         data = np.concatenate(data, axis=0)
         result,resample = self.transformer.inverse_transform(data)
+        print(f"Sampled {resample} invalid samples. Have {result.shape[0]} samples. Want {n} samples.")
         
         while len(result) < n:
             data_resample = []    

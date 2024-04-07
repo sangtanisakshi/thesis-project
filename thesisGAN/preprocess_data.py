@@ -169,6 +169,7 @@ def main(file_path, model):
     df['attack_type'] = df['attack_type'].replace({'---': 'benign'})
     df['attack_id'] = df['attack_id'].replace({'---': 0})
     df['attack_id'] = df['attack_id'].astype(np.int32)
+    df['tos'] = df['tos'].astype(np.int32)
     df = df[~df['proto'].isin(['IGMP', 'GRE'])]
     df.reset_index(drop=True, inplace=True)
     

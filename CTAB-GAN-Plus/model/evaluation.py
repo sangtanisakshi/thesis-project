@@ -62,9 +62,9 @@ def supervised_model_training(x_train, y_train, x_test,
     return [mse, evs, r2_score]
 
 
-def get_utility_metrics(real_path,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]},test_ratio=.20):
+def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]},test_ratio=.20):
 
-    data_real = pd.read_csv(real_path).to_numpy()
+    data_real = real_data.to_numpy()
     data_dim = data_real.shape[1]
 
     data_real_y = data_real[:,-1]
@@ -126,11 +126,11 @@ def get_utility_metrics(real_path,fake_paths,scaler="MinMax",type={"Classificati
 
     return diff_results
 
-def stat_sim(real_path,fake_path,cat_cols=None):
+def stat_sim(real_data,fake_path,cat_cols=None):
     
     Stat_dict={}
     
-    real = pd.read_csv(real_path)
+    real = real_data
     fake = pd.read_csv(fake_path)
 
     really = real.copy()
@@ -180,9 +180,9 @@ def stat_sim(real_path,fake_path,cat_cols=None):
 
     return [np.mean(num_stat),np.mean(cat_stat),corr_dist]
 
-def privacy_metrics(real_path,fake_path,data_percent=15):
+def privacy_metrics(real_data,fake_path,data_percent=15):
     
-    real = pd.read_csv(real_path).drop_duplicates(keep=False)
+    real = real_data
     fake = pd.read_csv(fake_path).drop_duplicates(keep=False)
 
     real_refined = real.sample(n=int(len(real)*(.01*data_percent)), random_state=42).to_numpy()

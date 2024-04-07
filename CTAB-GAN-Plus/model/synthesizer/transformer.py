@@ -79,7 +79,7 @@ class DataTransformer():
 
     def fit(self):
         data = self.train_data.values
-        self.meta = self.get_metadata_json("../ITGAN/util/data/val_data.json")
+        self.meta = self.get_metadata_json("Real_Datasets/malware.json")
         model = []
         self.ordering = []
         self.output_info = []
@@ -417,8 +417,8 @@ class DataTransformer():
                 current = data[:, st:st + info['size']]
                 st += info['size']
                 idx = np.argmax(current, axis=1)
-                # data_t[:, id_] = list(map(info['i2s'].__getitem__, idx))
-                data_t[:, id_] = idx
+                data_t[:, id_] = list(map(info['i2s'].__getitem__, idx))
+                # data_t[:, id_] = idx
             
             
         invalid_ids = np.unique(np.array(invalid_ids)) 

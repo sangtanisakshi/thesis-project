@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 class CTABGAN():
 
     def __init__(self,
-                 raw_csv_path = "Real_Datasets/Adult.csv",
+                 raw_df:pd.DataFrame,
                  test_ratio = 0.20,
                  categorical_columns = [ 'workclass', 'education', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country', 'income'], 
                  log_columns = [],
@@ -26,12 +26,13 @@ class CTABGAN():
                  general_columns = ["age"],
                  non_categorical_columns = [],
                  integer_columns = ['age', 'fnlwgt','capital-gain', 'capital-loss','hours-per-week'],
-                 problem_type= {"Classification": "income"}):
+                 problem_type= {"Classification": "income"},
+                 synthesizer = CTABGANSynthesizer()):
 
         self.__name__ = 'CTABGAN'
               
-        self.synthesizer = CTABGANSynthesizer()
-        self.raw_df = pd.read_csv(raw_csv_path)
+        self.synthesizer = synthesizer
+        self.raw_df = raw_df
         self.test_ratio = test_ratio
         self.categorical_columns = categorical_columns
         self.log_columns = log_columns
@@ -51,9 +52,9 @@ class CTABGAN():
         print('Finished training in',end_time-start_time," seconds.")
 
 
-    def generate_samples(self):
+    def generate_samples(self, n):
         
-        sample = self.synthesizer.sample(20) 
+        sample = self.synthesizer.sample(n) 
         sample_df = self.data_prep.inverse_prep(sample)
         
         return sample_df

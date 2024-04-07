@@ -29,3 +29,5 @@ ITGAN/last_result/
 wandb/
 CTAB-GAN-Plus/Fake_Datasets/
 ITGAN/.venv/
+CTAB-GAN-Plus/ctabgan_model.pkl
+CTAB-GAN-Plus/ctabgan_model.zip

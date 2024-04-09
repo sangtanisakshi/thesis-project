@@ -32,3 +32,4 @@ ITGAN/.venv/
 .venv/
 CTAB-GAN-Plus/ctabgan_model.pkl
 CTAB-GAN-Plus/ctabgan_model.zip
+saved-model/malware_model.pkl

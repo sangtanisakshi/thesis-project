@@ -10,6 +10,7 @@ Conv2d, ConvTranspose2d, Sigmoid, init, BCELoss, CrossEntropyLoss,SmoothL1Loss,L
 from model.synthesizer.transformer import ImageTransformer,DataTransformer
 from model.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
+import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class Classifier(Module):
@@ -576,6 +577,7 @@ class CTABGANSynthesizer:
         print(f"Sampled {resample} invalid samples. Have {result.shape[0]} samples. Want {n} samples.")
         
         while len(result) < n:
+            start_time = time.time()
             data_resample = []    
             steps_left = resample// self.batch_size + 1
             
@@ -596,6 +598,7 @@ class CTABGANSynthesizer:
 
             res,resample = self.transformer.inverse_transform(data_resample)
             result  = np.concatenate([result,res],axis=0)
-        
+            print(f"Sampled {resample} invalid samples. Have {result.shape[0]} samples. Want {n} samples.")
+            print(f"Time taken: {time.time()-start_time} seconds")
         return result[0:n]
 

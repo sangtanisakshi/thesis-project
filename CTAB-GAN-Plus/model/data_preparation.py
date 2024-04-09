@@ -109,9 +109,9 @@ class DataPrep(object):
         df_sample = pd.DataFrame(data,columns=self.df.columns)
      
         for i in range(len(self.label_encoder_list)):
-            le = self.label_encoder_list[i]["label_encoder"]
+           # le = self.label_encoder_list[i]["label_encoder"]
             df_sample[self.label_encoder_list[i]["column"]] = df_sample[self.label_encoder_list[i]["column"]].astype(int)
-            df_sample[self.label_encoder_list[i]["column"]] = le.inverse_transform(df_sample[self.label_encoder_list[i]["column"]])
+           # df_sample[self.label_encoder_list[i]["column"]] = le.inverse_transform(df_sample[self.label_encoder_list[i]["column"]])
 
         if self.log_columns:
             for i in df_sample:

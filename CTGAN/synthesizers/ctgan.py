@@ -6,14 +6,14 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-
+import time
 from torchinfo import summary
 from torch import optim
 from torch.nn import BatchNorm1d, Dropout, LeakyReLU, Linear, Module, ReLU, Sequential, functional
 from tqdm import tqdm
 
-from ctgan.data_sampler import DataSampler
-from ctgan.data_transformer import DataTransformer
+from data_sampler import DataSampler
+from data_transformer import DataTransformer
 from synthesizers.base import BaseSynthesizer, random_state
 
 
@@ -352,7 +352,8 @@ class CTGAN(BaseSynthesizer):
             epoch_iterator.set_description(description.format(gen=0, dis=0))
 
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
-
+        print("Start training...")
+        train_start = time.time()
         for i in epoch_iterator:
             print(f'Epoch {i} of {epochs}')
             for id_ in range(steps_per_epoch):
@@ -453,6 +454,10 @@ class CTGAN(BaseSynthesizer):
                 epoch_iterator.set_description(
                     description.format(gen=generator_loss, dis=discriminator_loss)
                 )
+        train_end = time.time() - train_start
+        print(f"Training time: {train_end} seconds")
+        wandb.log({"training_time": train_end})
+        print("Model training complete. Sampling data...")
 
     @random_state
     def sample(self, n, condition_column=None, condition_value=None):

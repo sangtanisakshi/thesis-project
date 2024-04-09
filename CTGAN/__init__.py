@@ -1,6 +1,6 @@
 """Synthesizers module."""
 
-from synthesizers.ctgan_m import CTGAN
+from synthesizers.ctgan import CTGAN
 from synthesizers.tvae import TVAE
 
 __all__ = (

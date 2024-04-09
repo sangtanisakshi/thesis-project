@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import torch.utils.data
 from torch.nn import functional as F
 import wandb
+import pickle
 from synthesizers.AEModel import Encoder, Decoder, loss_function
 from synthesizers.GeneratorModel import Generator, argument
 from synthesizers.DiscriminatorModel import Discriminator
@@ -20,7 +21,7 @@ from util.model_test import mkdir, fix_random_seed, model_save_dict
 
 from util.data import load_dataset
 from tensorboardX import SummaryWriter
-from util.benchmark import benchmark
+from util.benchmark import train
 
 class iter_schedular:
     def __init__(self):
@@ -269,7 +270,8 @@ class AEGANSynthesizer(BaseSynthesizer):
                        "D1_loss": loss_d, "iter_s.D_iter": iter_s.D_iter,
                        "G1_loss": loss_g, "iter_s.G_iter": iter_s.G_iter, 
                        "likelihood_loss": likelihood_loss, "iter_s.G_like_iter": iter_s.G_like_iter,
-                       "likelihood_reg_loss": likelihood_reg_loss, "iter_s.G_liker_iter": iter_s.G_liker_iter, "epoch": i})
+                       "likelihood_reg_loss": likelihood_reg_loss, "iter_s.G_liker_iter": iter_s.G_liker_iter, "epoch": i}) 
+        
 
     def sample(self, n, z_vector = False):
         self.generator.eval()
@@ -297,10 +299,6 @@ class AEGANSynthesizer(BaseSynthesizer):
             return result, fakezs
         else:
             return result
-
-    def fit_sample(self, train_data, test_data, meta_data, dataset_name, categorical_columns, ordinal_columns):
-        self.fit(train_data, test_data, meta_data, dataset_name, categorical_columns, ordinal_columns)
-        return self.sample(train_data.shape[0])
 
     def model_load(self, checkpoint, choosed_model):
         dataset_name = checkpoint["arg"]["data_name"]
@@ -341,7 +339,7 @@ if __name__ == "__main__":
     print(os.getcwd())
     
     data = "malware" ; test_name = "iGAN"
-    rtol = 1e-3 ; atol = 1e-3; batch_size = 2000 ; epochs = 300 ; random_num = 777 ; GPU_NUM = 0 ; save_loc= "last_result"
+    rtol = 1e-3 ; atol = 1e-3; batch_size = 50 ; epochs = 300 ; random_num = 777 ; GPU_NUM = 0 ; save_loc= "last_result"
     G_model= Generator; embedding_dim= 128; G_lr= 2e-4; G_beta= (0.5, 0.9); G_l2scale= 1e-6 ; G_l1scale = 0 ; G_learning_term = 3 ; 
     likelihood_coef = 0 ; likelihood_learn_start_score = None ; likelihood_learn_term = 6 ; kinetic_learn_every_G_learn = False
 
@@ -390,7 +388,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser('ITGAN')
     parser.add_argument('-n', '--run', type=str, help= 'Run name', default="ITGAN_test")
     parser.add_argument('--data', type=str, default = 'malware')
-    parser.add_argument('--epochs',type =int, default = 10)  
+    parser.add_argument('--epochs',type =int, default = 1)  
     parser.add_argument('--random_num', type=int, default = 777)
     parser.add_argument('--GPU_NUM', type = int, default = 0)
 
@@ -525,5 +523,6 @@ if __name__ == "__main__":
         f.write(str(arg) + "\n")
         f.write(str(G_args) + "\n")
  
-    a,b = benchmark(AEGANSynthesizer, arg, data)
+    a, b, model, syn_data = train(AEGANSynthesizer, arg, data)
+    pickle.dump(model, open(f"../saved-model/{dataset}_model.pkl", "wb"))
     print(a, b)

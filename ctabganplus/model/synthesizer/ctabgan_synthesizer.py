@@ -345,9 +345,13 @@ class CTABGANSynthesizer:
                  class_dim=(256, 256, 256, 256),
                  random_dim=100,
                  num_channels=64,
-                 l2scale=1e-5,
+                 weight_decay=1e-5,
                  batch_size=500,
-                 epochs=5):
+                 epochs=5,
+                 lr=2e-4, 
+                 lr_betas=(0.5, 0.9), 
+                 eps=1e-3, 
+                 ):
                  
 
         self.random_dim = random_dim
@@ -355,9 +359,12 @@ class CTABGANSynthesizer:
         self.num_channels = num_channels
         self.dside = None
         self.gside = None
-        self.l2scale = l2scale
+        self.weight_decay = weight_decay
         self.batch_size = batch_size
         self.epochs = epochs
+        self.lr = lr
+        self.lr_betas = lr_betas
+        self.eps = eps
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def fit(self, train_data=pd.DataFrame, categorical=[], mixed={}, general=[], non_categorical=[], type={}):
@@ -377,14 +384,14 @@ class CTABGANSynthesizer:
         data_dim = self.transformer.output_dim
         self.cond_generator = Cond(train_data, self.transformer.output_info)
         		
-        sides = [4, 8, 16, 24, 32, 64, 128, 256]
+        sides = [4, 8, 16, 24, 32, 64, 128, 256, 512, 1024, 2048]
         col_size_d = data_dim + self.cond_generator.n_opt
         for i in sides:
             if i * i >= col_size_d:
                 self.dside = i
                 break
         
-        sides = [4, 8, 16, 24, 32, 64, 128, 256]
+        sides = [4, 8, 16, 24, 32, 64, 128, 256, 512, 1024, 2048]
         col_size_g = data_dim
         for i in sides:
             if i * i >= col_size_g:
@@ -397,7 +404,7 @@ class CTABGANSynthesizer:
         
         self.generator = Generator(self.gside, layers_G).to(self.device)
         discriminator = Discriminator(self.dside, layers_D).to(self.device)
-        optimizer_params = dict(lr=2e-4, betas=(0.5, 0.9), eps=1e-3, weight_decay=self.l2scale)
+        optimizer_params = dict(lr=self.lr, betas=self.lr_betas, eps=self.eps, weight_decay=self.weight_decay)
         optimizerG = Adam(self.generator.parameters(), **optimizer_params)
         optimizerD = Adam(discriminator.parameters(), **optimizer_params)
 

@@ -231,28 +231,36 @@ def main(file_path, model):
     
     print("Total data after preprocessing:", (df.shape))
     print("NA rows check:", df.isna().sum())
-    df.to_csv('thesisGAN/input/preprocessed.csv')
+    df.to_csv('thesisgan/input/preprocessed.csv')
     print("Preprocessing done. Subset data saved to input folder")
 
+    print("reorder columns in the raw_df such that the column label is the last column")
+    cols = df.columns.tolist()
+    cols.remove('label')
+    cols.append('label')
+    df = df[cols]
+
+    if model == "ctabgan":
+        columns = ["attack_type", "label", "proto", "day_of_week", "tos"]
+        for c in columns:
+            exec(f'le_{c} = LabelEncoder()')
+            df[c] = globals()[f'le_{c}'].fit_transform(df[c])
+            df[c] = df[c].astype("int64")
+    
     # Split the data into train test and val
     train_data = df.sample(frac=0.7, random_state=42)
     print("Total training data:", (train_data.shape))
-    val_data = df.drop(train_data.index).sample(frac=0.66, random_state=42)
-    print("Total validation data:", (val_data.shape))
-    test_data = df.drop(train_data.index).drop(val_data.index)
+    test_data = df.drop(train_data.index)
     print("Total test data:", (test_data.shape))
-    trainval = train_data._append(val_data)
     
-    train_data.to_csv('thesisGAN/input/train_data.csv', index=False)
-    test_data.to_csv('thesisGAN/input/test_data.csv', index=False)
-    val_data.to_csv('thesisGAN/input/val_data.csv', index=False)
-    trainval.to_csv('thesisGAN/input/trainval_data.csv', index=False)
+    train_data.to_csv('thesisgan/input/train_data.csv', index=False)
+    test_data.to_csv('thesisgan/input/test_data.csv', index=False)
     
-    if model == "ITGAN":
+    if model == "itgan":
         print("Preprocessing done. Data saved to input folder. Please run the create_data_files.py script to create the npz and metadata files for running ITGAN")
-    elif model == "CTGAN":
+    elif model == "ctgan":
         print("Preprocessing done for CTGAN. Data saved to input folder")
-    
+
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Preprocess data')

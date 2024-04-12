@@ -1,20 +1,25 @@
-from ctabgan import CTABGANSynthesizer
-from evaluation import get_utility_metrics,stat_sim
-from data_preparation import DataPrep
+
 import numpy as np
 import pandas as pd
 import glob
-from sklearn.preprocessing import LabelEncoder
 import torch
 import time
 import warnings
 import argparse
 import wandb
+import sys
+sys.path.append(".")
+from ctabgan import CTABGANSynthesizer
+from evaluation import get_utility_metrics,stat_sim
+from data_preparation import DataPrep
+from sklearn.preprocessing import LabelEncoder
+from thesisgan.model_evaluation import eval_model
 
-def train():
+
+def train(real_data, categorical_columns, log_columns, mixed_columns, general_columns, non_categorical_columns, integer_columns, problem_type, test_ratio, epochs, n, CTABGANSynthesizer):
 
     start_time = time.time()
-    data_prep = DataPrep(raw_df,categorical_columns,log_columns,mixed_columns,general_columns,non_categorical_columns,integer_columns,problem_type,test_ratio)
+    data_prep = DataPrep(real_data,categorical_columns,log_columns,mixed_columns,general_columns,non_categorical_columns,integer_columns,problem_type,test_ratio)
     CTABGANSynthesizer.fit(train_data=data_prep.df, categorical = data_prep.column_types["categorical"], mixed = data_prep.column_types["mixed"],
     general = data_prep.column_types["general"], non_categorical = data_prep.column_types["non_categorical"], type=problem_type)
     end_time = time.time()
@@ -24,42 +29,44 @@ def train():
         
     return sample_df
 
+if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test_ratio", type=float, default=0.20)
+    parser.add_argument("--categorical_columns", nargs='+', default=['attack_type','day_of_week','label','tos','proto'])
+    parser.add_argument("--log_columns", nargs='+', default=[])
+    parser.add_argument("--mixed_columns", nargs='+', default={}])
+    parser.add_argument("--general_columns", nargs='+', default=[])
+    parser.add_argument("--non_categorical_columns", nargs='+', default= ['packets','src_ip_1','src_ip_2','src_ip_3','src_ip_4',
+                                'dst_ip_1','dst_ip_2','dst_ip_3','dst_ip_4','src_pt','dst_pt', 'time_of_day','duration','bytes'])
+    parser.add_argument("--integer_columns", nargs='+', default=['age', 'fnlwgt', 'capital-gain', 'capital-loss', 'hours-per-week'])
+    parser.add_argument("--problem_type", type=dict, default={"Classification": 'label'})
+    parser.add_argument("--num_exp", type=int, default=1)
+    parser.add_argument("--dataset", type=str, default="Malware")
+    parser.add_argument("--ip_path", type=str, default="thesisgan/input/trainval_data.csv")
+    parser.add_argument("--op_path", type=str, default="thesisgan/output/")
+    parser.add_argument("--test_data", type=str, default="thesisgan/input/test_data.csv")
+    parser.add_argument("--wb_run", type=str, default="ctabgan_1")
+    parser.add_argument("--epochs", type=int, default=10)
+    
+    args = parser.parse_args()
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--test_ratio", type=float, default=0.77951)
-parser.add_argument("--categorical_columns", nargs='+', default=['attack_type','day_of_week','label','tos','proto'])
-parser.add_argument("--log_columns", nargs='+', default=[])
-parser.add_argument("--mixed_columns", nargs='+', default={}])
-parser.add_argument("--general_columns", nargs='+', default=[])
-parser.add_argument("--non_categorical_columns", nargs='+', default= ['packets','src_ip_1','src_ip_2','src_ip_3','src_ip_4','dst_ip_1','dst_ip_2',
-                                        'dst_ip_3','dst_ip_4','src_pt','dst_pt', 'time_of_day','duration','bytes'],
-                integer_columns = ['attack_id','tcp_con','tcp_ech','tcp_urg','tcp_ack','tcp_psh','tcp_rst','tcp_syn','tcp_fin'])
-parser.add_argument("--integer_columns", nargs='+', default=['age', 'fnlwgt', 'capital-gain', 'capital-loss', 'hours-per-week'])
-parser.add_argument("--problem_type", type=dict, default={"Classification": 'label'})
-parser.add_argument("--num_exp", type=int, default=1)
-parser.add_argument("--dataset", type=str, default="Malware")
-parser.add_argument("--real_path", type=str, default="../Real_Datasets/trainval_data.csv")
-parser.add_argument("--op_path", type=str, default="../Fake_Datasets")
+    real_data = pd.DataFrame(pd.read_csv(args.ip_path))
 
-args = parser.parse_args()
+    #reorder columns in the raw_df such that the column "label" is the last column
+    cols = real_data.columns.tolist()
+    cols.remove('label')
+    cols.append('label')
+    raw_df = real_data[cols]
 
-raw_df = pd.DataFrame(pd.read_csv(args.real_path))
+    columns = ["attack_type", "label", "proto", "day_of_week"]
+    for c in columns:
+        exec(f'le_{c} = LabelEncoder()')
+        raw_df[c] = globals()[f'le_{c}'].fit_transform(raw_df[c])
+        raw_df[c] = raw_df[c].astype("int64")
 
-#reorder columns in the raw_df such that the column "label" is the last column
-cols = raw_df.columns.tolist()
-cols.remove('label')
-cols.append('label')
-raw_df = raw_df[cols]
-
-columns = ["attack_type", "label", "proto", "day_of_week"]
-for c in columns:
-    exec(f'le_{c} = LabelEncoder()')
-    raw_df[c] = globals()[f'le_{c}'].fit_transform(raw_df[c])
-    raw_df[c] = raw_df[c].astype("int64")
-
-
-for i in range(args.num_exp):
-    train() 
+    for i in range(args.num_exp):
+        train()
 
 model_dict = {"Classification": ["lr", "dt", "rf", "mlp", "svm"]}
 result_mat = get_utility_metrics(raw_df, fake_paths, "MinMax", model_dict, test_ratio=args.test_ratio)
@@ -100,10 +107,6 @@ synthesizer =  CTABGAN(raw_df,
                 synthesizer = CTABGANSynthesizer(epochs=10))
 
 
-import os
-import os
-if not os.path.exists(fake_file_root+"/"+dataset):
-os.makedirs(fake_file_root+"/"+dataset)
 syn.to_csv(fake_file_root+"/"+dataset+"/"+ dataset+"_fake_{exp}.csv".format(exp=i), index= False)
 
 fake_paths = glob.glob(fake_file_root+"/"+dataset+"/"+"*")

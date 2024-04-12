@@ -96,31 +96,30 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
       
     all_fake_results_avg = []
     
-    for fake_path in fake_paths:
-      data_fake  = pd.read_csv(fake_path).to_numpy()
-      data_fake_y = data_fake[:,-1]
-      data_fake_X = data_fake[:,:data_dim-1]
+    data_fake  = fake_paths.to_numpy()
+    data_fake_y = data_fake[:,-1]
+    data_fake_X = data_fake[:,:data_dim-1]
 
-      if problem=="Classification":
-        X_train_fake, _ , y_train_fake, _ = model_selection.train_test_split(data_fake_X ,data_fake_y, test_size=test_ratio, stratify=data_fake_y,random_state=42) 
-      else:
-        X_train_fake, _ , y_train_fake, _ = model_selection.train_test_split(data_fake_X ,data_fake_y, test_size=test_ratio,random_state=42)  
+    if problem=="Classification":
+      X_train_fake, _ , y_train_fake, _ = model_selection.train_test_split(data_fake_X ,data_fake_y, test_size=test_ratio, stratify=data_fake_y,random_state=42) 
+    else:
+      X_train_fake, _ , y_train_fake, _ = model_selection.train_test_split(data_fake_X ,data_fake_y, test_size=test_ratio,random_state=42)  
 
-      if scaler=="MinMax":
-        scaler_fake = MinMaxScaler()
-      else:
-        scaler_fake = StandardScaler()
-      
-      scaler_fake.fit(data_fake_X)
-      
-      X_train_fake_scaled = scaler_fake.transform(X_train_fake)
-      
-      all_fake_results = []
-      for model in models:
-        fake_results = supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
-        all_fake_results.append(fake_results)
+    if scaler=="MinMax":
+      scaler_fake = MinMaxScaler()
+    else:
+      scaler_fake = StandardScaler()
+    
+    scaler_fake.fit(data_fake_X)
+    
+    X_train_fake_scaled = scaler_fake.transform(X_train_fake)
+    
+    all_fake_results = []
+    for model in models:
+      fake_results = supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
+      all_fake_results.append(fake_results)
 
-      all_fake_results_avg.append(all_fake_results)
+    all_fake_results_avg.append(all_fake_results)
     
     diff_results = np.array(all_real_results)- np.array(all_fake_results_avg).mean(axis=0)
 
@@ -131,7 +130,7 @@ def stat_sim(real_data,fake_path,cat_cols=None):
     Stat_dict={}
     
     real = real_data
-    fake = pd.read_csv(fake_path)
+    fake = fake_path
 
     really = real.copy()
     fakey = fake.copy()

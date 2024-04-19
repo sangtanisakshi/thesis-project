@@ -8,14 +8,7 @@ from sdmetrics.reports.single_table import QualityReport
 pio.renderers.default = 'iframe'
 from table_evaluator import TableEvaluator
 
-def eval_model(model, real_data, syn_data, metadata, op_dir):
-    
-    if model == 'ctabgan':
-        columns = ["attack_type", "label", "proto", "day_of_week"]
-        for c in columns:
-            exec(f'le_{c} = LabelEncoder()')
-            real_data[c] = globals()[f'le_{c}'].fit_transform(real_data[c])
-            real_data[c] = real_data[c].astype("int64")
+def eval_model(real_data, syn_data, metadata, op_dir):
             
     real_data.drop(columns=["tcp_urg"], inplace=True)
     syn_data.drop(columns=["tcp_urg"], inplace=True)

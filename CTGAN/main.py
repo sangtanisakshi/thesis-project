@@ -10,11 +10,13 @@ import time
 import os
 import pickle
 import glob
+import plotly.io as pio
 from synthesizers.ctgan import CTGAN
 from sklearn.preprocessing import LabelEncoder
 from ctabganplus.model.evaluation import get_utility_metrics,stat_sim
 from thesisgan.model_evaluation import eval_model
 from PIL import Image
+pio.renderers.default = 'iframe'
 
 def _parse_args():
     
@@ -40,7 +42,7 @@ def _parse_args():
     parser.add_argument('--no-header', dest='header', action='store_false', help='The CSV file has no header. Discrete columns will be indices.')
     parser.add_argument('-m', '--metadata', help='Path to the metadata')
     parser.add_argument('-d', '--discrete_columns', default=discrete_columns, help='Comma separated list of discrete columns without whitespaces.')
-    parser.add_argument('-n', '--num-samples', type=int, default=10000, help='Number of rows to sample. Defaults to the training data size')
+    parser.add_argument('-n', '--num-samples', type=int, default=None, help='Number of rows to sample. Defaults to the training data size')
     parser.add_argument('-glr', '--generator_lr', type=float, default=2e-4, help='Learning rate for the generator.')
     parser.add_argument('-dlr', '--discriminator_lr', type=float, default=2e-4, help='Learning rate for the discriminator.')
     parser.add_argument('-gdecay', '--generator_decay', type=float, default=1e-6, help='Weight decay for the generator.')
@@ -68,8 +70,7 @@ def _parse_args():
 
 def main():
     """CLI."""
-    args = _parse_args()
-    print(args.load)
+    args = _parse_args() 
     logging = wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description, group="CTGAN")
     
     # Set device to GPU if available
@@ -80,7 +81,7 @@ def main():
 
     print(torch.cuda.get_device_name(0))
 
-    train_data = pd.read_csv(args.data)
+    train_data = pd.read_csv(args.data, index_col=[0])
 
     config = {
     'embedding_dim': args.embedding_dim,
@@ -115,7 +116,7 @@ def main():
         pickle.dump(model, open(str(op_path+"model.pkl"), "wb"))
 
     # Load test data
-    test_data = pd.read_csv(args.test_data)
+    test_data = pd.read_csv(args.test_data, index_col=[0])
     print("Test data loaded")
     
     num_samples = test_data.shape[0] if args.num_samples is None else args.num_samples
@@ -170,7 +171,7 @@ def main():
     }
     
     #Data Evaluation
-    scores = eval_model("ctgan", test_data, sampled, eval_metadata, op_path)
+    scores = eval_model(test_data, sampled, eval_metadata, op_path)
     
     # Save the evaluation results to wandb
     imgs = [np.asarray(Image.open(f)) for f in sorted(glob.glob(op_path + "*.png"))]

@@ -30,3 +30,7 @@ ctabganplus/ctabgan_model.zip
 saved-model/malware_model.pkl
 thesisgan/__pycache__/
 ctabganplus/model/.DS_Store
+thesisgan/output/*
+thesisgan/sdmets.ipynb
+thesisgan/sdmets copy.ipynb
+thesisgan/evaluation_outputs/

@@ -92,6 +92,7 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
     all_real_results = []
     for model in models:
       real_results = supervised_model_training(X_train_real_scaled,y_train_real,X_test_real_scaled,y_test_real,model,problem)
+      print("Model: ", model,"trained on real data")
       all_real_results.append(real_results)
       
     all_fake_results_avg = []
@@ -117,6 +118,7 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
     all_fake_results = []
     for model in models:
       fake_results = supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
+      print("Model: ", model, "trained on fake data")
       all_fake_results.append(fake_results)
 
     all_fake_results_avg.append(all_fake_results)
@@ -182,7 +184,7 @@ def stat_sim(real_data,fake_path,cat_cols=None):
 def privacy_metrics(real_data,fake_path,data_percent=15):
     
     real = real_data
-    fake = pd.read_csv(fake_path).drop_duplicates(keep=False)
+    fake = fake_path.drop_duplicates(keep=False)
 
     real_refined = real.sample(n=int(len(real)*(.01*data_percent)), random_state=42).to_numpy()
     fake_refined = fake.sample(n=int(len(fake)*(.01*data_percent)), random_state=42).to_numpy()

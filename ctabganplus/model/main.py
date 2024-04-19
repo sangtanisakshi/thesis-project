@@ -51,7 +51,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    real_data = pd.DataFrame(pd.read_csv(args.ip_path))
+    real_data = pd.DataFrame(pd.read_csv(args.ip_path, index_col=[0]))
 
     #reorder columns in the raw_df such that the column "label" is the last column
     cols = real_data.columns.tolist()
@@ -68,61 +68,62 @@ if __name__ == "__main__":
     for i in range(args.num_exp):
         train()
 
-model_dict = {"Classification": ["lr", "dt", "rf", "mlp", "svm"]}
-result_mat = get_utility_metrics(raw_df, fake_paths, "MinMax", model_dict, test_ratio=args.test_ratio)
+    model_dict = {"Classification": ["lr", "dt", "rf", "mlp", "svm"]}
+    result_mat = get_utility_metrics(raw_df, fake_paths, "MinMax", model_dict, test_ratio=args.test_ratio)
 
-result_df = pd.DataFrame(result_mat, columns=["Acc", "AUC", "F1_Score"])
-result_df.index = list(model_dict.values())[0]
+    result_df = pd.DataFrame(result_mat, columns=["Acc", "AUC", "F1_Score"])
+    result_df.index = list(model_dict.values())[0]
 
-stat_res_avg = []
-for fake_path in args.op_path:
-    stat_res = stat_sim(raw_df, fake_path, args.categorical_columns)
-    stat_res_avg.append(stat_res)
+    stat_res_avg = []
+    for fake_path in args.op_path:
+        stat_res = stat_sim(raw_df, fake_path, args.categorical_columns)
+        stat_res_avg.append(stat_res)
 
-stat_columns = ["Average WD (Continuous Columns", "Average JSD (Categorical Columns)", "Correlation Distance"]
-stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1, 3), columns=stat_columns)
-stat_results
+    stat_columns = ["Average WD (Continuous Columns", "Average JSD (Categorical Columns)", "Correlation Distance"]
+    stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1, 3), columns=stat_columns)
+    stat_results
 
-if torch.cuda.is_available():
-device = torch.device("cuda")
-print(torch.cuda.get_device_name(0))
-warnings.filterwarnings("ignore")
+    if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print(torch.cuda.get_device_name(0))
+    warnings.filterwarnings("ignore")
 
-num_exp = 1
-dataset = "Malware"
-real_path = "Real_Datasets/trainval_data.csv"
-fake_file_root = "Fake_Datasets"
-
-
-synthesizer =  CTABGAN(raw_df,
-                test_ratio = 0.77951,
-                categorical_columns = ['attack_type','day_of_week','label','tos','proto'], 
-                log_columns = [],
-                mixed_columns= {},
-                general_columns = [],
-                non_categorical_columns = ['packets','src_ip_1','src_ip_2','src_ip_3','src_ip_4','dst_ip_1','dst_ip_2',
-                                        'dst_ip_3','dst_ip_4','src_pt','dst_pt', 'time_of_day','duration','bytes'],
-                integer_columns = ['attack_id','tcp_con','tcp_ech','tcp_urg','tcp_ack','tcp_psh','tcp_rst','tcp_syn','tcp_fin'],
-                problem_type= {"Classification": 'label'},
-                synthesizer = CTABGANSynthesizer(epochs=10))
+    num_exp = 1
+    dataset = "Malware"
+    real_path = "Real_Datasets/trainval_data.csv"
+    fake_file_root = "Fake_Datasets"
 
 
-syn.to_csv(fake_file_root+"/"+dataset+"/"+ dataset+"_fake_{exp}.csv".format(exp=i), index= False)
+    synthesizer =  CTABGAN(raw_df,
+                    test_ratio = 0.77951,
+                    categorical_columns = ['attack_type','day_of_week','label','tos','proto'], 
+                    log_columns = [],
+                    mixed_columns= {},
+                    general_columns = [],
+                    non_categorical_columns = ['packets','src_ip_1','src_ip_2','src_ip_3','src_ip_4','dst_ip_1','dst_ip_2',
+                                            'dst_ip_3','dst_ip_4','src_pt','dst_pt', 'time_of_day','duration','bytes'],
+                    integer_columns = ['attack_id','tcp_con','tcp_ech','tcp_urg','tcp_ack','tcp_psh','tcp_rst','tcp_syn','tcp_fin'],
+                    problem_type= {"Classification": 'label'},
+                    synthesizer = CTABGANSynthesizer(epochs=10))
 
-fake_paths = glob.glob(fake_file_root+"/"+dataset+"/"+"*")
+    syn = synthesizer.generate_samples(1000)
 
-model_dict =  {"Classification":["lr","dt","rf","mlp","svm"]}
-result_mat = get_utility_metrics(raw_df,fake_paths,"MinMax",model_dict, test_ratio = 0.20)
+    syn.to_csv(fake_file_root+"/"+dataset+"/"+ dataset+"_fake_{exp}.csv".format(exp=i), index= False)
 
-result_df  = pd.DataFrame(result_mat,columns=["Acc","AUC","F1_Score"])
-result_df.index = list(model_dict.values())[0]
+    fake_paths = glob.glob(fake_file_root+"/"+dataset+"/"+"*")
 
-malware_categorical = ['attack_type','day_of_week','label','tos','proto']
-stat_res_avg = []
-for fake_path in fake_paths:
-stat_res = stat_sim(raw_df,fake_path,malware_categorical)
-stat_res_avg.append(stat_res)
+    model_dict =  {"Classification":["lr","dt","rf","mlp","svm"]}
+    result_mat = get_utility_metrics(raw_df,fake_paths,"MinMax",model_dict, test_ratio = 0.20)
 
-stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
-stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
-stat_results
+    result_df  = pd.DataFrame(result_mat,columns=["Acc","AUC","F1_Score"])
+    result_df.index = list(model_dict.values())[0]
+
+    malware_categorical = ['attack_type','day_of_week','label','tos','proto']
+    stat_res_avg = []
+    for fake_path in fake_paths:
+        stat_res = stat_sim(raw_df,fake_path,malware_categorical)
+        stat_res_avg.append(stat_res)
+
+    stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
+    stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
+    stat_results

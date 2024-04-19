@@ -8,7 +8,7 @@ import pandas as pd
 
 def read_csv(csv_filename, meta_filename=None, header=True, discrete=None):
     """Read a csv file."""
-    data = pd.read_csv(csv_filename, header='infer' if header else None)
+    data = pd.read_csv(csv_filename, header='infer' if header else None, index_col=[0])
 
     if meta_filename:
         with open(meta_filename) as meta_file:

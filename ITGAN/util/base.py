@@ -51,18 +51,18 @@ class BaseSynthesizer:
         score = compute_scores(self.train, self.test, syn_data, self.meta) 
         s = score.loc[0].index.to_list()
 
-        for k in range(1, score.shape[1]):
-            self.writer.add_scalar('average/'+s[k], score.iloc[:, k].mean(), i)
-            for j in range(len(score)):
-                self.writer.add_scalar(score['name'][j]+'/'+s[k], score.iloc[j, k], i)
+        #for k in range(1, score.shape[1]):
+            #self.writer.add_scalar('average/'+s[k], score.iloc[:, k].mean(), i)
+            #for j in range(len(score)):
+                #self.writer.add_scalar(score['name'][j]+'/'+s[k], score.iloc[j, k], i)
         
         if "likelihood" not in self.meta["problem_type"]:
             cluster_score = compute_cluster_scores(self.train, self.test, syn_data, self.meta) 
             s = cluster_score.loc[0].index.to_list()
-            for k in range(1, cluster_score.shape[1]):
-                self.writer.add_scalar('average/'+s[k], cluster_score.iloc[:, k].mean(), i)
-                for j in range(len(cluster_score)):
-                    self.writer.add_scalar(cluster_score['name'][j]+'/'+s[k], cluster_score.iloc[j, k], i)
+            #for k in range(1, cluster_score.shape[1]):
+                #self.writer.add_scalar('average/'+s[k], cluster_score.iloc[:, k].mean(), i)
+                #for j in range(len(cluster_score)):
+                    #self.writer.add_scalar(cluster_score['name'][j]+'/'+s[k], cluster_score.iloc[j, k], i)
             
             cluster_score["name"] = cluster_score["name"].apply(lambda x: x + "/" + "silhouette")
             cluster_score = cluster_score.set_index("name")

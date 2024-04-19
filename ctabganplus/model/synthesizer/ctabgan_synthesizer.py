@@ -377,8 +377,8 @@ class CTABGANSynthesizer:
                 target_index = train_data.columns.get_loc(type[problem_type])
 
         self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general, non_categorical_list=non_categorical)
-        print("Data transformed, now fitting the model")
-        self.transformer.fit() 
+        self.transformer.fit()
+        print("Data transformed, now fitting the model") 
         train_data = self.transformer.transform(train_data.values)
         data_sampler = Sampler(train_data, self.transformer.output_info)
         data_dim = self.transformer.output_dim

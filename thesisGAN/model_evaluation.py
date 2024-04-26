@@ -10,10 +10,8 @@ from table_evaluator import TableEvaluator
 
 def eval_model(real_data, syn_data, metadata, op_dir):
             
-    real_data.drop(columns=["tcp_urg"], inplace=True)
-    syn_data.drop(columns=["tcp_urg"], inplace=True)
+
     scores = {}
-    
     print("Statistical Analysis: Data Distribution, Cumsum, Statistical Similarity and Correlation")
     table_eval = TableEvaluator(real_data, syn_data, verbose=True)  # Added a comma between real_data and syn_data
     table_eval.visual_evaluation(op_dir)
@@ -44,19 +42,20 @@ def eval_model(real_data, syn_data, metadata, op_dir):
     scores["column_shapes"] = column_shapes.Score.mean()
     create_bar_plot(column_shapes, x='Column', y='Score', hue='Metric', op_dir=op_dir, name="column_shapes")
     
-    cpt_plot = quality_report.get_visualization(property_name="Column Pair Trends")
-    pio.write_image(cpt_plot, str(op_dir + "column_pair_trends.png"), format='png', engine='kaleido')
-    scores["\n column_pair_trends"] = quality_report.get_details(property_name='Column Pair Trends').Score.mean()
+    column_pair_trends = quality_report.get_details(property_name='Column Pair Trends')
+    scores["column_pair_trends"] = column_pair_trends.Score.mean()
     print("\n Column Shapes score: ", str(column_shapes),
           "\n Column Pair Trends score: ", str(), "...Plotted graphs for reference.")
 
     return scores
 
 def create_bar_plot(data, x, y, hue, op_dir, name):
-# Create bar plot
     plt.clf()
     plt.cla()
-    sns.set_theme(rc={"figure.figsize":(28, 6), 'axes.labelsize': 10, 'legend.fontsize': 10})
-    fig = sns.barplot(data=data, x=x, y=y, hue=hue)
-    fig.bar_label(fig.containers[0])
+    fig = plt.figure(figsize=(35, 6))
+    ax = fig.add_subplot(111)
+    sns.barplot(x=x, y=y, hue=hue, data=data, ax=ax)
+    ax.bar_label(ax.containers[0])
+    ax.bar_label(ax.containers[1])
     plt.savefig(str(op_dir + name + ".png"))
+

@@ -125,7 +125,7 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
     
     diff_results = np.array(all_real_results)- np.array(all_fake_results_avg).mean(axis=0)
 
-    return diff_results
+    return all_real_results, all_fake_results, diff_results
 
 def stat_sim(real_data,fake_path,cat_cols=None):
     

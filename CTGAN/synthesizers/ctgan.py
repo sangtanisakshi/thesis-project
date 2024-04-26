@@ -143,33 +143,36 @@ class CTGAN(BaseSynthesizer):
             Defaults to ``True``.
     """
 
-    def __init__(self, embedding_dim=128, generator_dim=(256, 256), discriminator_dim=(256, 256),
-                 generator_lr=2e-4, generator_decay=1e-6, discriminator_lr=2e-4,
-                 discriminator_decay=1e-6, batch_size=500, discriminator_steps=1,
-                 log_frequency=True, verbose=False, epochs=300, pac=10, cuda=True):
+    # def __init__(self, embedding_dim=128, generator_dim=(256, 256), discriminator_dim=(256, 256),
+    #              generator_lr=2e-4, generator_decay=1e-6, discriminator_lr=2e-4,
+    #              discriminator_decay=1e-6, batch_size=500, discriminator_steps=1,
+    #              log_frequency=True, verbose=False, epochs=300, pac=10, cuda=True, lambda_=10):
+        
+    def __init__(self, config):
 
-        assert batch_size % 2 == 0
+        assert config.batch_size % 2 == 0
 
-        self._embedding_dim = embedding_dim
-        self._generator_dim = generator_dim
-        self._discriminator_dim = discriminator_dim
+        self._embedding_dim = config.embedding_dim
+        self._generator_dim = config.generator_dim
+        self._discriminator_dim = config.discriminator_dim
 
-        self._generator_lr = generator_lr
-        self._generator_decay = generator_decay
-        self._discriminator_lr = discriminator_lr
-        self._discriminator_decay = discriminator_decay
+        self._generator_lr = config.generator_lr
+        self._generator_decay = config.generator_decay
+        self._discriminator_lr = config.discriminator_lr
+        self._discriminator_decay = config.discriminator_decay
 
-        self._batch_size = batch_size
-        self._discriminator_steps = discriminator_steps
-        self._log_frequency = log_frequency
-        self._verbose = verbose
-        self._epochs = epochs
-        self.pac = pac
-
-        if not cuda or not torch.cuda.is_available():
+        self._batch_size = config.batch_size
+        self._discriminator_steps = config.discriminator_steps
+        self._log_frequency = config.log_frequency
+        self._verbose = config.verbose
+        self._epochs = config.epochs
+        self.pac = config.pac
+        self.lambda_ = config.lambda_
+        self.cuda = config.cuda
+        if not config.cuda or not torch.cuda.is_available():
             device = 'cpu'
-        elif isinstance(cuda, str):
-            device = cuda
+        elif isinstance(config.cuda, str):
+            device = config.cuda
         else:
             device = 'cuda'
 
@@ -344,7 +347,7 @@ class CTGAN(BaseSynthesizer):
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
 
-        self.loss_values = pd.DataFrame(columns=['Epoch', 'Generator Loss', 'Distriminator Loss'])
+        self.loss_values = pd.DataFrame(columns=['Epoch', 'Generator Loss', 'Discriminator Loss'])
 
         epoch_iterator = tqdm(range(epochs), disable=(not self._verbose))
         if self._verbose:
@@ -394,7 +397,7 @@ class CTGAN(BaseSynthesizer):
                     y_real = discriminator(real_cat)
 
                     pen = discriminator.calc_gradient_penalty(
-                        real_cat, fake_cat, self._device, self.pac)
+                        real_cat, fake_cat, self._device, self.pac, lambda_=self.lambda_)
                     loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
 
                     optimizerD.zero_grad(set_to_none=False)
@@ -434,15 +437,15 @@ class CTGAN(BaseSynthesizer):
 
             generator_loss = loss_g.detach().cpu().item()
             discriminator_loss = loss_d.detach().cpu().item()
-
-            print("Epoch: ", i ,"\nGenerator Loss: ", generator_loss, "\nDiscriminator Loss: ", discriminator_loss)
+            gan_loss = generator_loss + discriminator_loss + pen.detach().cpu().item()
+            print("Epoch: ", i ,"\n Generator Loss: ", generator_loss, "\n Discriminator Loss: ", discriminator_loss)
             epoch_loss_df = pd.DataFrame({
                 'Epoch': i,
                 'Generator Loss': [generator_loss],
                 'Discriminator Loss': [discriminator_loss]
             })
             
-            wandb.log({'Epoch': [i], 'Generator Loss': generator_loss, 'Discriminator Loss': discriminator_loss})
+            wandb.log({'Epoch': i, 'Generator Loss': generator_loss, 'Discriminator Loss': discriminator_loss, 'Total Loss': gan_loss})
             if not self.loss_values.empty:
                 self.loss_values = pd.concat(
                     [self.loss_values, epoch_loss_df]
@@ -457,7 +460,9 @@ class CTGAN(BaseSynthesizer):
         train_end = time.time() - train_start
         print(f"Training time: {train_end} seconds")
         wandb.log({"training_time": train_end})
-        print("Model training complete. Sampling data...")
+        print("Model training complete")
+        
+        return gan_loss
 
     @random_state
     def sample(self, n, condition_column=None, condition_value=None):

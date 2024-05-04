@@ -71,7 +71,7 @@ def wrapper(train_data, discrete_columns, epochs, rest_args):
         op_path = (rest_args['output'] + rest_args['wandb_run'] + "/" + sweep_id + "/")
         test_data, sampled_data = sample(model, wandb.config, op_path)
         eval(test_data, sampled_data, op_path)
-        
+    
     return hpo
 
 def sample(model, args, op_path):
@@ -156,37 +156,18 @@ def eval(test_data, sample_data, op_path):
     
     #Model Classification
     model_dict =  {"Classification":["lr","dt","rf","mlp"]}
-    real_results, fake_results, results_diff = get_utility_metrics(test_data, sample_data,"MinMax", model_dict, test_ratio = 0.30)
+    #Model Classification
+    model_dict =  {"Classification":["lr","dt","rf","mlp"]}
+    result_df, cr = get_utility_metrics(test_data,sample_data,"MinMax", model_dict, test_ratio = 0.30)
 
-    # get real, fake and diff results and put the acc, auc and f1 scores in a dataframe
-    diff_df = pd.DataFrame(results_diff,columns=["Acc","AUC","F1_Score"])
-    diff_df.index = list(model_dict.values())[0]
-    diff_df.index.name = "Model"
-    diff_df["Model"] = diff_df.index
-    diff_df["Type"] = "Difference"
-    
-    real_df = pd.DataFrame(real_results,columns=["Acc","AUC","F1_Score"])
-    real_df.index = list(model_dict.values())[0]
-    real_df.index.name = "Model"
-    real_df["Model"] = real_df.index
-    real_df["Type"] = "Real"
-    
-    fake_df = pd.DataFrame(fake_results,columns=["Acc","AUC","F1_Score"])
-    fake_df.index = list(model_dict.values())[0]
-    fake_df.index.name = "Model"
-    fake_df["Model"] = fake_df.index
-    fake_df["Type"] = "Fake"
-    
-    #concatenate the dataframes
-    result_df = pd.concat([real_df,fake_df,diff_df])
-    result_df = result_df.reset_index(drop=True)
-
+    cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     stat_res_avg = []
-    stat_res = stat_sim(test_data, sample_data, list(le_dict.keys()))
+    stat_res = stat_sim(test_data, sample_data, cat_cols)
     stat_res_avg.append(stat_res)
 
     stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
     stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
+    print("Evaluation complete. Check the output folder for the plots and evaluation results.")
     wandb.log({'Stat Results' : wandb.Table(dataframe=stat_results), 'Classification Results': wandb.Table(dataframe=result_df)})
     print("Evaluation complete. Check the output folder for the plots and evaluation results.")
       
@@ -224,8 +205,8 @@ def main():
         'method': 'bayes', 
         'metric': {'name': 'gan_loss', 'goal': 'minimize'},
         'parameters': {
-            'generator_lr': {'values': [2e-4, 1e-4, 5e-4]},
-            'discriminator_lr': {'values': [2e-4, 1e-4, 5e-4]},
+            'generator_lr': {'values': [2e-4, 1e-4, 3e-4, 5e-4]},
+            'discriminator_lr': {'values': [2e-4, 1e-4, 3e-4, 5e-4]},
             'generator_decay': {'values': [1e-6, 1e-5, 1e-4]},
             'discriminator_decay': {'values': [0, 1e-5, 1e-4]},
             'embedding_dim': {'values': [128, 256, 512]},

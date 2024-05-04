@@ -398,7 +398,7 @@ class CTGAN(BaseSynthesizer):
 
                     pen = discriminator.calc_gradient_penalty(
                         real_cat, fake_cat, self._device, self.pac, lambda_=self.lambda_)
-                    loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
+                    loss_d = -(torch.mean(y_real) - torch.mean(y_fake)) + pen
 
                     optimizerD.zero_grad(set_to_none=False)
                     pen.backward(retain_graph=True)

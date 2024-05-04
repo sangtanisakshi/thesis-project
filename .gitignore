@@ -34,3 +34,5 @@ thesisgan/output/*
 thesisgan/sdmets.ipynb
 thesisgan/sdmets copy.ipynb
 thesisgan/evaluation_outputs/
+ctabganplus/main_script.ipynb
+thesisGAN/preprocess_data.py

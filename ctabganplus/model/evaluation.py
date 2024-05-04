@@ -43,10 +43,11 @@ def supervised_model_training(x_train, y_train, x_test,
   if problem_type == "Classification":
     if len(np.unique(y_train))>2:
       predict = model.predict_proba(x_test)        
-      acc = metrics.accuracy_score(y_test,pred)*100
-      auc = metrics.roc_auc_score(y_test, predict,average="weighted",multi_class="ovr")
-      f1_score = metrics.precision_recall_fscore_support(y_test, pred,average="weighted")[2]
-      return [acc, auc, f1_score] 
+      acc = metrics.balanced_accuracy_scoreaccuracy_score(y_test,pred)*100
+      auc = metrics.roc_auc_score(y_test, predict,average="macro",multi_class="ovo")
+      f1_score = metrics.precision_recall_fscore_support(y_test, pred,average="macro")[2]
+      classification_report = metrics.classification_report(y_test,pred, target_names=['benign', 'bruteForce', 'dos', 'pingScan', 'portScan'])
+      return [acc, auc, f1_score], classification_report
 
     else:
       predict = model.predict_proba(x_test)[:,1]    
@@ -61,6 +62,38 @@ def supervised_model_training(x_train, y_train, x_test,
     r2_score = metrics.r2_score(y_test,pred)
     return [mse, evs, r2_score]
 
+def cr_processing(a, cr_df, model):
+
+  a = a.split("\n")
+  a = [x.split() for x in a]
+  a[0] = ['attack_type', 'precision', 'recall', 'f1-score', 'support']
+  a = [x for x in a if x]
+  a = {x[0]:x[1:] for x in a}
+
+  #if the length of the values is less than 4, add empty strings to the left to make it 4
+  for k,v in a.items():
+      if len(v) < 4:
+          a[k] = ["0.0"]*(4-len(v)) + v
+          
+  #if length of the values is more than 4, remove the first value
+  for k,v in a.items():
+      if len(v) > 4:
+          a[k] = v[1:]
+          
+  a = pd.DataFrame(a, columns=a.keys()).transpose()
+  #convert index to a column
+  a.reset_index(inplace=True)
+  a.rename(columns={"index":"attack_type"}, inplace=True)
+  a.columns = a.iloc[0].str.strip()
+  #remove first row of a
+  a = a[1:]
+  a["Model"] = model
+
+  #concat a with b
+  cr_df = pd.concat([cr_df,a])
+  cr_df.reset_index(drop=True, inplace=True)
+  
+  return cr_df
 
 def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]},test_ratio=.20):
 
@@ -90,10 +123,12 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
     X_test_real_scaled = scaler_real.transform(X_test_real)
 
     all_real_results = []
+    real_cr = pd.DataFrame()
     for model in models:
-      real_results = supervised_model_training(X_train_real_scaled,y_train_real,X_test_real_scaled,y_test_real,model,problem)
+      real_results, real_classification_report = supervised_model_training(X_train_real_scaled,y_train_real,X_test_real_scaled,y_test_real,model,problem)
       print("Model: ", model,"trained on real data")
       all_real_results.append(real_results)
+      real_cr = cr_processing(real_classification_report, real_cr, model)
       
     all_fake_results_avg = []
     
@@ -116,16 +151,64 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
     X_train_fake_scaled = scaler_fake.transform(X_train_fake)
     
     all_fake_results = []
+    fake_cr = pd.DataFrame()
     for model in models:
-      fake_results = supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
+      fake_results, fake_classification_report = supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
       print("Model: ", model, "trained on fake data")
       all_fake_results.append(fake_results)
-
+      fake_cr = cr_processing(fake_classification_report, fake_cr, model)
+    
     all_fake_results_avg.append(all_fake_results)
     
     diff_results = np.array(all_real_results)- np.array(all_fake_results_avg).mean(axis=0)
 
-    return all_real_results, all_fake_results, diff_results
+    real_cr["precision"] = (real_cr["precision"]).astype("float64")
+    real_cr["recall"] = real_cr["recall"].astype("float64")
+    real_cr["f1-score"] = real_cr["f1-score"].astype("float64")
+    real_cr["support"] = real_cr["support"].astype("int64")
+
+    fake_cr["precision"] = fake_cr["precision"].astype("float64")
+    fake_cr["recall"] = fake_cr["recall"].astype("float64")
+    fake_cr["f1-score"] = fake_cr["f1-score"].astype("float64")
+    fake_cr["support"] = fake_cr["support"].astype("int64")
+
+    real_cr["type"] = "real"
+    fake_cr["type"] = "fake"
+    
+    #get the difference between precision, recall and f1-score in real and fake data
+    diff_cr = real_cr.copy()
+    diff_cr["precision"] = real_cr["precision"] - fake_cr["precision"]
+    diff_cr["recall"] = real_cr["recall"] - fake_cr["recall"]
+    diff_cr["f1-score"] = real_cr["f1-score"] - fake_cr["f1-score"]
+    diff_cr["support"] = real_cr["support"] - fake_cr["support"]
+    diff_cr["type"] = "diff"
+
+    cr = pd.concat([real_cr,fake_cr,diff_cr])
+    
+        # get real, fake and diff results and put the acc, auc and f1 scores in a dataframe
+    diff_df = pd.DataFrame(diff_results,columns=["Acc","AUC","F1_Score"])
+    diff_df.index = list(models)
+    diff_df.index.name = "Model"
+    diff_df["Model"] = diff_df.index
+    diff_df["Type"] = "Difference"
+
+    real_df = pd.DataFrame(real_results,columns=["Acc","AUC","F1_Score"])
+    real_df.index = list(models)
+    real_df.index.name = "Model"
+    real_df["Model"] = real_df.index
+    real_df["Type"] = "Real"
+
+    fake_df = pd.DataFrame(fake_results,columns=["Acc","AUC","F1_Score"])
+    fake_df.index = list(models)
+    fake_df.index.name = "Model"
+    fake_df["Model"] = fake_df.index
+    fake_df["Type"] = "Fake"
+
+    #concatenate the dataframes
+    result_df = pd.concat([real_df,fake_df,diff_df])
+    result_df = result_df.reset_index(drop=True)
+    
+    return result_df, cr
 
 def stat_sim(real_data,fake_path,cat_cols=None):
     

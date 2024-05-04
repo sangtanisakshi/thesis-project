@@ -11,6 +11,8 @@ from model.synthesizer.transformer import ImageTransformer,DataTransformer
 from model.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
 import time
+from torchinfo import summary
+import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class Classifier(Module):
@@ -342,29 +344,22 @@ def weights_init(m):
 
 class CTABGANSynthesizer:
     def __init__(self,
-                 class_dim=(256, 256, 256, 256),
-                 random_dim=100,
-                 num_channels=64,
-                 weight_decay=1e-5,
-                 batch_size=500,
-                 epochs=5,
-                 lr=2e-4, 
-                 lr_betas=(0.5, 0.9), 
-                 eps=1e-3, 
+                 config,
                  ):
                  
 
-        self.random_dim = random_dim
-        self.class_dim = class_dim
-        self.num_channels = num_channels
+        self.random_dim = config.random_dim
+        self.class_dim = config.class_dim
+        self.num_channels = config.num_channels
         self.dside = None
         self.gside = None
-        self.weight_decay = weight_decay
-        self.batch_size = batch_size
-        self.epochs = epochs
-        self.lr = lr
-        self.lr_betas = lr_betas
-        self.eps = eps
+        self.weight_decay = config.weight_decay
+        self.batch_size = config.batch_size
+        self.epochs = config.epochs
+        self.lr = config.lr
+        self.lr_betas = config.lr_betas
+        self.eps = config.eps
+        self.lambda_ = config.lambda_
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def fit(self, train_data=pd.DataFrame, categorical=[], mixed={}, general=[], non_categorical=[], type={}):
@@ -375,13 +370,13 @@ class CTABGANSynthesizer:
             problem_type = list(type.keys())[0]
             if problem_type:
                 target_index = train_data.columns.get_loc(type[problem_type])
-
         self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general, non_categorical_list=non_categorical)
         self.transformer.fit()
-        print("Data transformed, now fitting the model") 
         train_data = self.transformer.transform(train_data.values)
         data_sampler = Sampler(train_data, self.transformer.output_info)
         data_dim = self.transformer.output_dim
+        print("Data transformed, now fitting the model")
+
         self.cond_generator = Cond(train_data, self.transformer.output_info)
         		
         sides = [4, 8, 16, 24, 32, 64, 128, 256, 512, 1024, 2048]
@@ -403,7 +398,11 @@ class CTABGANSynthesizer:
         layers_D = determine_layers_disc(self.dside, self.num_channels)
         
         self.generator = Generator(self.gside, layers_G).to(self.device)
+        print(summary(self.generator))
+        
         discriminator = Discriminator(self.dside, layers_D).to(self.device)
+        print(summary(discriminator))
+        
         optimizer_params = dict(lr=self.lr, betas=self.lr_betas, eps=self.eps, weight_decay=self.weight_decay)
         optimizerG = Adam(self.generator.parameters(), **optimizer_params)
         optimizerD = Adam(discriminator.parameters(), **optimizer_params)
@@ -415,7 +414,6 @@ class CTABGANSynthesizer:
             st_ed= get_st_ed(target_index,self.transformer.output_info)
             classifier = Classifier(data_dim,self.class_dim,st_ed).to(self.device)
             optimizerC = optim.Adam(classifier.parameters(),**optimizer_params)
-        
         
         self.generator.apply(weights_init)
         discriminator.apply(weights_init)
@@ -430,9 +428,9 @@ class CTABGANSynthesizer:
         
         steps_per_epoch = max(1, len(train_data) // self.batch_size)
         for i in tqdm(range(self.epochs)):
+            print("Epoch: ", i+1, "of ", self.epochs)
             for id_ in range(steps_per_epoch):
-				
-                
+
                 for _ in range(ci):
                     noisez = torch.randn(self.batch_size, self.random_dim, device=self.device)
                     condvec = self.cond_generator.sample_train(self.batch_size)
@@ -475,7 +473,7 @@ class CTABGANSynthesizer:
 
                     d_fake.backward() 
                     
-                    pen = calc_gradient_penalty_slerp(discriminator, real_cat, fake_cat,  self.Dtransformer , self.device)
+                    pen = calc_gradient_penalty_slerp(discriminator, real_cat, fake_cat,  self.Dtransformer , self.device, self.lambda_)
 
                     pen.backward()
                 
@@ -552,11 +550,30 @@ class CTABGANSynthesizer:
                     optimizerC.zero_grad()
                     loss_cc.backward()
                     optimizerC.step()
-                                
+                    
+            g = g.detach().cpu().item()
+            d_real = d_real.detach().cpu().item()
+            d_fake = d_fake.detach().cpu().item()
+            pen = pen.detach().cpu().item()
+            cross_entropy = cross_entropy.detach().cpu().item()
+            loss_info = loss_info.detach().cpu().item()
+            loss_cc = loss_cc.detach().cpu().item()
+            loss_cg = loss_cg.detach().cpu().item()
             epoch += 1
-
+            print("Epoch: ", i+1 ,"\n Generator Loss: ", g+cross_entropy+loss_info+loss_cc+loss_cg, 
+                  "\n Discriminator Loss: ", d_real+d_fake+pen)
             
-   
+            wandb.log({"Generator Loss": g, 
+                       "Discriminator Loss": d_real+d_fake, 
+                       "Cross Entropy Loss": cross_entropy, 
+                       "Downstream Loss": loss_cc+loss_cg, 
+                       "Info Loss": loss_info,
+                       "Penalty": pen,
+                       "Epoch": epoch,
+                       "Total Loss": g+d_real+d_fake+cross_entropy+loss_cc+loss_cg+loss_info+pen})
+        gan_loss = g+d_real+d_fake+cross_entropy+loss_cc+loss_cg+loss_info+pen
+        return gan_loss        
+    
     def sample(self, n):
         
         self.generator.eval()

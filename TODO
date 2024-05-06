@@ -1,3 +1,5 @@
+python3.10 -m pip install torch==1.12.0 torchvision==0.12.0 torchaudio==0.11.0 --index-url https://download.pytorch.org/whl/cu113
+
 - Move data cleaning pynb to python file:
     - sample the data 
 ## DONE

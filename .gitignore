@@ -1,6 +1,10 @@
 .vscode/launch.json
 .vscode/settings.json
 data/
+.cache/
+ct/
+ctab/
+=1.26.11
 thesisgan/model-outputs/
 thesisgan/input/
 ctgan/.github
@@ -36,3 +40,6 @@ thesisgan/sdmets copy.ipynb
 thesisgan/evaluation_outputs/
 ctabganplus/main_script.ipynb
 thesisGAN/preprocess_data.py
+ctabgan_batch.job
+ctabgan.yml
+ctgan_batch.job

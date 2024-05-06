@@ -1,3 +1,4 @@
+
 import numpy as np
 import pandas as pd
 import glob
@@ -6,7 +7,6 @@ import time
 import warnings
 import argparse
 import pickle
-import wandb
 import os
 import sys
 sys.path.append(".")
@@ -16,6 +16,12 @@ from model.data_preparation import DataPrep
 from sklearn.preprocessing import LabelEncoder
 from thesisgan.model_evaluation import eval_model
 from PIL import Image
+import wandb
+import optuna
+import joblib
+from optuna.samplers import TPESampler
+from types import SimpleNamespace
+os.environ['WANDB_OFFLINE'] = 'true'
 
 def seed_everything(seed=42):
     np.random.seed(seed)
@@ -26,8 +32,8 @@ def seed_everything(seed=42):
 def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--wandb_run", type=str, default="ctabgan_sweep_run")
-    parser.add_argument("--desc", type=str, default="HPO Run for CTABGAN+")
-    parser.add_argument("--hpo", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--desc", type=str, default="HPO Run for CTABGAN with optuna")
+    parser.add_argument("--hpo", default=True)
     parser.add_argument("--test_ratio", type=float, default=0.00003)
     parser.add_argument("--categorical_columns", nargs='+', default=['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type'])
     parser.add_argument("--log_columns", nargs='+', default=[])
@@ -37,7 +43,7 @@ def argument_parser():
     parser.add_argument("--integer_columns", nargs='+', default=[])
     parser.add_argument("--problem_type", type=dict, default={"Classification": 'attack_type'})
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--save", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--save", default=True)
     parser.add_argument("--random_dim", type=int, default=100)
     parser.add_argument("--class_dim", type=int, default=(256, 256, 256, 256))
     parser.add_argument("--num_channels", type=int, default=64)
@@ -56,15 +62,40 @@ def argument_parser():
     args = parser.parse_args()
     return args
 
+def get_hpo_parameters(trial):
+    
+    #defining the hyperparameters that need tuning
+    random_dim = trial.suggest_categorical('random_dim',[50, 100, 200])
+    class_dim = trial.suggest_categorical('class_dim',[(256,256,256,256), (512,512,512,512)])
+    num_channels = trial.suggest_categorical('num_channels',[32, 64, 128])
+    weight_decay = trial.suggest_float("weight_decay",1e-6,1e-3,log=True)
+    batch_size = trial.suggest_categorical('batch_size',[500, 1000])
+    lr = trial.suggest_float("lr",1e-4,1e-3,log=True)
+    lr_betas = trial.suggest_categorical('lr_betas',[(0.5, 0.9), (0.5, 0.95), (0.9, 0.999)])
+    eps = trial.suggest_categorical('eps',[1e-3, 1e-4, 1e-5])
+    lambda_ = trial.suggest_categorical('lambda_',[10, 20, 30])
+    hpo_params = dict({"random_dim": random_dim, "class_dim": class_dim, "num_channels": num_channels, "weight_decay": weight_decay, "batch_size": batch_size, "lr": lr, "lr_betas": lr_betas, "eps": eps, "lambda_": lambda_})
+    print("Hyperparameters for current trial: ",hpo_params)
+    return hpo_params
+
 def wrapper(train_data, rest_args):
-    def hpo():
-        wandb.init(project="masterthesis", config=wandb.config, group="CTABGAN+", notes=rest_args["desc"])
-        wandb.config.update(rest_args)
-        synthesizer = CTABGANSynthesizer(wandb.config)
+    def hpo(trial):
+        hpo_params = get_hpo_parameters(trial)
+        config = {}
+        config.update(rest_args)
+        config.update(hpo_params)
+        print(config)
+        wandb.init(project="masterthesis",
+                    config=config,
+                    group="CTABGAN_SWEEP_OPTUNA", 
+                    notes=rest_args["desc"],
+                    mode="online",
+                    settings=wandb.Settings(start_method='fork'))
+        synthesizer = CTABGANSynthesizer(config)
         start_time = time.time()
         data_prep = DataPrep(train_data,rest_args["categorical_columns"],rest_args["log_columns"],
-                             rest_args["mixed_columns"],["general_columns"],
-                             rest_args["non_categorical_columns"],rest_args["integer_columns"],
+                                rest_args["mixed_columns"],["general_columns"],
+                                rest_args["non_categorical_columns"],rest_args["integer_columns"],
                             rest_args["problem_type"],rest_args["test_ratio"])
         print("Data preparation complete. Time taken: ",time.time()-start_time)
         print("Starting training...")
@@ -75,11 +106,14 @@ def wrapper(train_data, rest_args):
         print('Finished training in',end_time-train_time," seconds.")
         wandb.log({"training_time": end_time-train_time})
         wandb.log({"WGAN-GP_experiment": gan_loss})
-        sweep_id = wandb.run.id
-        op_path = (rest_args['op_path'] + rest_args['wandb_run'] + "/" + sweep_id + "/")
+        trial = str(trial.number)
+        op_path = (rest_args['op_path'] + rest_args['wandb_run'] + "/" + trial + "/")
         test_data, syn_data = sample_data(synthesizer, rest_args, op_path, data_prep)
-        eval(test_data, syn_data, op_path)
+        eval(train_data, test_data, syn_data, op_path)
+        wandb.finish()
+        return gan_loss
     return hpo
+
 
 def sample_data(model, args, op_path, data_prep):
     
@@ -111,7 +145,7 @@ def sample_data(model, args, op_path, data_prep):
     
     return test_data, sample_df
 
-def eval(test_data, sample_data, op_path):
+def eval(train_data, test_data, sample_data, op_path):
     eval_metadata = {
         "columns" : 
         {
@@ -144,7 +178,8 @@ def eval(test_data, sample_data, op_path):
         le_dict[c] = LabelEncoder()
         test_data[c] = le_dict[c].fit_transform(test_data[c])
         sample_data[c] = le_dict[c].fit_transform(sample_data[c])
-    
+        train_data[c] = le_dict[c].fit_transform(train_data[c])
+        
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     for col in cat_cols:
         test_data[col] = test_data[col].astype(str)
@@ -161,6 +196,13 @@ def eval(test_data, sample_data, op_path):
     for col in cat_cols:
         test_data[col] = test_data[col].astype("int64")
         sample_data[col] = sample_data[col].astype("int64")
+        train_data[col] = train_data[col].astype("int64")
+        
+    #if the synthetic data does not have the same attack types as the test data, we need to fix it
+    for at in test_data["attack_type"].unique():
+        if at not in sample_data["attack_type"].unique():
+            #add a row with the attack type
+            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
     
     #Model Classification
     model_dict =  {"Classification":["lr","dt","rf","mlp"]}
@@ -177,7 +219,7 @@ def eval(test_data, sample_data, op_path):
                'Classification Results': wandb.Table(dataframe=result_df),
                'Classification Report': wandb.Table(dataframe=cr)})
     print("Evaluation complete. Check the output folder for the plots and evaluation results.")
-
+    
 if __name__ == "__main__":
 
     args = argument_parser()
@@ -189,24 +231,8 @@ if __name__ == "__main__":
     
     seed_everything(args.seed)
     
-    wandb.login()
     if args.hpo:
         args.ip_path = "thesisgan/input/new_hpo_data.csv"
-        hpo_config = {
-        'method': 'bayes', 
-        'metric': {'name': 'gan_loss', 'goal': 'minimize'},
-        'parameters': {
-            'random_dim': {'values': [50, 100, 200]},
-            'class_dim': {'values': [(256,256,256,256), (512,512,512,512)]},
-            'num_channels': {'values': [32, 64, 128]},
-            'weight_decay': {'values': [1e-6, 1e-5, 1e-4, 1e-3]},
-            'batch_size': {'values': [500, 1000]},
-            'lr': {'values': [2e-4, 1e-4, 3e-4, 5e-4, 1e-3]},
-            'lr_betas': {'values': [(0.5, 0.9), (0.5, 0.95), (0.9, 0.999)]},
-            'eps': {'values': [1e-3, 1e-4, 1e-5]},
-            'lambda_': {'values': [10, 20, 30]}
-        }
-        }
         rest_args = {
         'ip_path': args.ip_path,
         'wandb_run': args.wandb_run,
@@ -232,7 +258,20 @@ if __name__ == "__main__":
         for c in le_dict.keys():
             le_dict[c] = LabelEncoder()
             train_data[c] = le_dict[c].fit_transform(train_data[c])
-        sweep_id = wandb.sweep(sweep=hpo_config, project="masterthesis")
-        wandb.agent(sweep_id, function=wrapper(train_data, rest_args), count=15, project="masterthesis")
+            train_data[c] = train_data[c].astype("int64")
+        sampler = TPESampler(seed=42)  # Make the sampler behave in a deterministic way and get reproducable results
+        study = optuna.create_study(direction="minimize",sampler=sampler)
+        study.optimize(wrapper(train_data, rest_args), n_trials=15)
+        joblib.dump(study,("thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.pkl"))
+        study_data = pd.DataFrame(study.trials_dataframe())
+        data_csv = study_data.to_csv("thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.csv")
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial params:")
+        for key, value in study.best_params.items():
+            print(" {}: {}".format(key, value))
+    
+        #get best trial hyperparameters and train the model with that
+        best_params = SimpleNamespace(**study.best_params)
     else:
-        wandb_logging = wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description, group="CTABGAN+")
+       wandb_logging = wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description, group="CTABGAN+")
+       

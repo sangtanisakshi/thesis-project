@@ -43,7 +43,7 @@ def supervised_model_training(x_train, y_train, x_test,
   if problem_type == "Classification":
     if len(np.unique(y_train))>2:
       predict = model.predict_proba(x_test)        
-      acc = metrics.balanced_accuracy_scoreaccuracy_score(y_test,pred)*100
+      acc = metrics.balanced_accuracy_score(y_test,pred)*100
       auc = metrics.roc_auc_score(y_test, predict,average="macro",multi_class="ovo")
       f1_score = metrics.precision_recall_fscore_support(y_test, pred,average="macro")[2]
       classification_report = metrics.classification_report(y_test,pred, target_names=['benign', 'bruteForce', 'dos', 'pingScan', 'portScan'])
@@ -185,20 +185,20 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
 
     cr = pd.concat([real_cr,fake_cr,diff_cr])
     
-        # get real, fake and diff results and put the acc, auc and f1 scores in a dataframe
+      # get real, fake and diff results and put the acc, auc and f1 scores in a dataframe
     diff_df = pd.DataFrame(diff_results,columns=["Acc","AUC","F1_Score"])
     diff_df.index = list(models)
     diff_df.index.name = "Model"
     diff_df["Model"] = diff_df.index
     diff_df["Type"] = "Difference"
 
-    real_df = pd.DataFrame(real_results,columns=["Acc","AUC","F1_Score"])
+    real_df = pd.DataFrame(all_real_results,columns=["Acc","AUC","F1_Score"])
     real_df.index = list(models)
     real_df.index.name = "Model"
     real_df["Model"] = real_df.index
     real_df["Type"] = "Real"
 
-    fake_df = pd.DataFrame(fake_results,columns=["Acc","AUC","F1_Score"])
+    fake_df = pd.DataFrame(all_fake_results,columns=["Acc","AUC","F1_Score"])
     fake_df.index = list(models)
     fake_df.index.name = "Model"
     fake_df["Model"] = fake_df.index
@@ -234,17 +234,21 @@ def stat_sim(real_data,fake_path,cat_cols=None):
         if column in cat_cols:
 
             real_pdf=(really[column].value_counts()/really[column].value_counts().sum())
+            print(column, real_pdf)
             fake_pdf=(fakey[column].value_counts()/fakey[column].value_counts().sum())
+            print(column, fake_pdf)
             categories = (fakey[column].value_counts()/fakey[column].value_counts().sum()).keys().tolist()
             sorted_categories = sorted(categories)
-            
+            print("sorted categories: ", sorted_categories)
             real_pdf_values = [] 
             fake_pdf_values = []
 
             for i in sorted_categories:
+                print("i: ", i)
                 real_pdf_values.append(real_pdf[i])
                 fake_pdf_values.append(fake_pdf[i])
-            
+                print("real_pdf_values: ", real_pdf_values)
+                print("fake_pdf_values: ", fake_pdf_values)
             if len(real_pdf)!=len(fake_pdf):
                 zero_cats = set(really[column].value_counts().keys())-set(fakey[column].value_counts().keys())
                 for z in zero_cats:
@@ -263,45 +267,3 @@ def stat_sim(real_data,fake_path,cat_cols=None):
             num_stat.append(Stat_dict[column])
 
     return [np.mean(num_stat),np.mean(cat_stat),corr_dist]
-
-def privacy_metrics(real_data,fake_path,data_percent=15):
-    
-    real = real_data
-    fake = fake_path.drop_duplicates(keep=False)
-
-    real_refined = real.sample(n=int(len(real)*(.01*data_percent)), random_state=42).to_numpy()
-    fake_refined = fake.sample(n=int(len(fake)*(.01*data_percent)), random_state=42).to_numpy()
-
-    scalerR = StandardScaler()
-    scalerR.fit(real_refined)
-    scalerF = StandardScaler()
-    scalerF.fit(fake_refined)
-    df_real_scaled = scalerR.transform(real_refined)
-    df_fake_scaled = scalerF.transform(fake_refined)
-    
-    dist_rf = metrics.pairwise_distances(df_real_scaled, Y=df_fake_scaled, metric='minkowski', n_jobs=-1)
-    dist_rr = metrics.pairwise_distances(df_real_scaled, Y=None, metric='minkowski', n_jobs=-1)
-    rd_dist_rr = dist_rr[~np.eye(dist_rr.shape[0],dtype=bool)].reshape(dist_rr.shape[0],-1)
-    dist_ff = metrics.pairwise_distances(df_fake_scaled, Y=None, metric='minkowski', n_jobs=-1)
-    rd_dist_ff = dist_ff[~np.eye(dist_ff.shape[0],dtype=bool)].reshape(dist_ff.shape[0],-1) 
-    smallest_two_indexes_rf = [dist_rf[i].argsort()[:2] for i in range(len(dist_rf))]
-    smallest_two_rf = [dist_rf[i][smallest_two_indexes_rf[i]] for i in range(len(dist_rf))]       
-    smallest_two_indexes_rr = [rd_dist_rr[i].argsort()[:2] for i in range(len(rd_dist_rr))]
-    smallest_two_rr = [rd_dist_rr[i][smallest_two_indexes_rr[i]] for i in range(len(rd_dist_rr))]
-    smallest_two_indexes_ff = [rd_dist_ff[i].argsort()[:2] for i in range(len(rd_dist_ff))]
-    smallest_two_ff = [rd_dist_ff[i][smallest_two_indexes_ff[i]] for i in range(len(rd_dist_ff))]
-    nn_ratio_rr = np.array([i[0]/i[1] for i in smallest_two_rr])
-    nn_ratio_ff = np.array([i[0]/i[1] for i in smallest_two_ff])
-    nn_ratio_rf = np.array([i[0]/i[1] for i in smallest_two_rf])
-    nn_fifth_perc_rr = np.percentile(nn_ratio_rr,5)
-    nn_fifth_perc_ff = np.percentile(nn_ratio_ff,5)
-    nn_fifth_perc_rf = np.percentile(nn_ratio_rf,5)
-
-    min_dist_rf = np.array([i[0] for i in smallest_two_rf])
-    fifth_perc_rf = np.percentile(min_dist_rf,5)
-    min_dist_rr = np.array([i[0] for i in smallest_two_rr])
-    fifth_perc_rr = np.percentile(min_dist_rr,5)
-    min_dist_ff = np.array([i[0] for i in smallest_two_ff])
-    fifth_perc_ff = np.percentile(min_dist_ff,5)
-    
-    return np.array([fifth_perc_rf,fifth_perc_rr,fifth_perc_ff,nn_fifth_perc_rf,nn_fifth_perc_rr,nn_fifth_perc_ff]).reshape(1,6)    

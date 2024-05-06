@@ -3,7 +3,6 @@ import pandas as pd
 import torch
 from sklearn.mixture import BayesianGaussianMixture
 import json
-
 class DataTransformer():
     
     def __init__(self, train_data=pd.DataFrame, categorical_list=[], mixed_dict={}, general_list=[], non_categorical_list=[], n_clusters=10, eps=0.005):

@@ -348,18 +348,18 @@ class CTABGANSynthesizer:
                  ):
                  
 
-        self.random_dim = config.random_dim
-        self.class_dim = config.class_dim
-        self.num_channels = config.num_channels
+        self.random_dim = config["random_dim"]
+        self.class_dim = config["class_dim"]
+        self.num_channels = config["num_channels"]
         self.dside = None
         self.gside = None
-        self.weight_decay = config.weight_decay
-        self.batch_size = config.batch_size
-        self.epochs = config.epochs
-        self.lr = config.lr
-        self.lr_betas = config.lr_betas
-        self.eps = config.eps
-        self.lambda_ = config.lambda_
+        self.weight_decay = config["weight_decay"]
+        self.batch_size = config["batch_size"]
+        self.epochs = config["epochs"]
+        self.lr = config["lr"]
+        self.lr_betas = config["lr_betas"]
+        self.eps = config["eps"]
+        self.lambda_ = config["lambda_"]
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def fit(self, train_data=pd.DataFrame, categorical=[], mixed={}, general=[], non_categorical=[], type={}):

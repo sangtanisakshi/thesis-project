@@ -17,3 +17,8 @@
 TODO for the data:
 - use data first without the date column and see how the results are 
 - check results with date column (specifically CTGAN)
+
+
+TODO NEW 5th May:
+- Run ITGAN and send it to slurm
+- 

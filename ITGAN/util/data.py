@@ -12,7 +12,7 @@ import warnings
 warnings.filterwarnings(action='ignore')
 
 BASE_URL = 'http://sdgym.s3.amazonaws.com/datasets/' 
-DATA_PATH = os.path.join(os.path.dirname(__file__), 'data')
+DATA_PATH = "../itgan/util/data"
 
 
 def _load_json(path):

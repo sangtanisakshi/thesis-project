@@ -150,29 +150,29 @@ class CTGAN(BaseSynthesizer):
         
     def __init__(self, config):
 
-        assert config.batch_size % 2 == 0
+        assert config["batch_size"] % 2 == 0
 
-        self._embedding_dim = config.embedding_dim
-        self._generator_dim = config.generator_dim
-        self._discriminator_dim = config.discriminator_dim
+        self._embedding_dim = config["embedding_dim"]
+        self._generator_dim = config["generator_dim"]
+        self._discriminator_dim = config["discriminator_dim"]
 
-        self._generator_lr = config.generator_lr
-        self._generator_decay = config.generator_decay
-        self._discriminator_lr = config.discriminator_lr
-        self._discriminator_decay = config.discriminator_decay
+        self._generator_lr = config["generator_lr"]
+        self._generator_decay = config["generator_decay"]
+        self._discriminator_lr = config["discriminator_lr"]
+        self._discriminator_decay = config["discriminator_decay"]
 
-        self._batch_size = config.batch_size
-        self._discriminator_steps = config.discriminator_steps
-        self._log_frequency = config.log_frequency
-        self._verbose = config.verbose
-        self._epochs = config.epochs
-        self.pac = config.pac
-        self.lambda_ = config.lambda_
-        self.cuda = config.cuda
-        if not config.cuda or not torch.cuda.is_available():
+        self._batch_size = config["batch_size"]
+        self._discriminator_steps = config["discriminator_steps"]
+        self._log_frequency = config["log_frequency"]
+        self._verbose = config["verbose"]
+        self._epochs = config["epochs"]
+        self.pac = config["pac"]
+        self.lambda_ = config["lambda_"]
+        self.cuda = config["cuda"]
+        if not config["cuda"] or not torch.cuda.is_available():
             device = 'cpu'
-        elif isinstance(config.cuda, str):
-            device = config.cuda
+        elif isinstance(config["cuda"], str):
+            device = config["cuda"]
         else:
             device = 'cuda'
 

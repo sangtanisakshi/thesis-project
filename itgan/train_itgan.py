@@ -20,7 +20,6 @@ from util.transformer import BGMTransformer
 from util.model_test import mkdir, fix_random_seed, model_save_dict
 
 from util.data import load_dataset
-from tensorboardX import SummaryWriter
 
 class iter_schedular:
     def __init__(self):
@@ -101,7 +100,7 @@ class AEGANSynthesizer(BaseSynthesizer):
             self.save_arg["excute_time"] = str(datetime.datetime.now())
             with open(self.save_loc + "/param/" + self.data_name + "/" + self.test_name + ".txt","a") as f:
                 f.write("excute_time: " + self.save_arg["excute_time"] + "\n")
-            self.writer = SummaryWriter(self.save_loc + "/runs/" + self.data_name + "/" + self.test_name)
+            #self.writer = SummaryWriter(self.save_loc + "/runs/" + self.data_name + "/" + self.test_name)
         
 
 
@@ -522,6 +521,6 @@ if __name__ == "__main__":
         f.write(str(arg) + "\n")
         f.write(str(G_args) + "\n")
  
-    a, b, model, syn_data = train(AEGANSynthesizer, arg, data)
-    pickle.dump(model, open(f"../saved-model/{dataset}_model.pkl", "wb"))
-    print(a, b)
+    # a, b, model, syn_data = train(AEGANSynthesizer, arg, data)
+    # pickle.dump(model, open(f"../saved-model/{dataset}_model.pkl", "wb"))
+    # print(a, b)

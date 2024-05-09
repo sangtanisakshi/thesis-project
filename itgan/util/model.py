@@ -11,12 +11,9 @@ import torch.utils.data
 from torch.nn import functional as F
 
 from util.data import load_dataset
-from util.evaluate import compute_scores
-from util.evaluate_cluster import compute_cluster_scores
 from util.base import BaseSynthesizer
 from util.transformer import BGMTransformer
-from util.model_test import mkdir, fix_random_seed, model_save_dict
-
+from util.model_test import fix_random_seed
 
 class iter_schedular:
     def __init__(self):
@@ -92,14 +89,6 @@ class AEGANSynthesizer(BaseSynthesizer):
         self.rtol=rtol; self.atol=atol; self.batch_size=batch_size; self.epochs=epochs; self.random_num=random_num ; self.save_loc = save_loc
         self.GPU_NUM = GPU_NUM ; self.save_arg = save_arg ; self.data_name = data_name ; self.test_name = test_name
         self.device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu') 
-        
-        if train:
-            self.save_arg["excute_time"] = str(datetime.datetime.now())
-            with open(self.save_loc + "/param/" + self.data_name + "/" + self.test_name + ".txt","a") as f:
-                f.write("excute_time: " + self.save_arg["excute_time"] + "\n")
-            #self.writer = SummaryWriter(self.save_loc + "/runs/" + self.data_name + "/" + self.test_name)
-        
-
 
         # for random
         fix_random_seed(self.random_num)
@@ -159,7 +148,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerEn.step()
                     optimizerDe.step()
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
-                    #self.writer.add_scalar('losses/AE_loss', loss_ae, iter_s.ae_iter)
+                    ##self.writer.add_scalar('losses/AE_loss', loss_ae, iter_s.ae_iter)
                     iter_s.ae_iter += 1
                     print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
                 ######## AutoEncoder Learning Gan loss #########
@@ -175,7 +164,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerEn.step()
                     optimizerDe.step()
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
-                    #self.writer.add_scalar('losses/AE_G1_loss', loss_ae_g1, iter_s.ae_g_iter)
+                    ##self.writer.add_scalar('losses/AE_G1_loss', loss_ae_g1, iter_s.ae_g_iter)
                     print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
                     real_h = encoder(real) 
                     loss_ae_g2 = 0
@@ -184,7 +173,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerEn.zero_grad()
                     loss_ae_g2.backward()
                     optimizerEn.step()
-                    #self.writer.add_scalar('losses/AE_G2_loss', loss_ae_g2, iter_s.ae_g_iter)
+                    ##self.writer.add_scalar('losses/AE_G2_loss', loss_ae_g2, iter_s.ae_g_iter)
                     iter_s.ae_g_iter += 1
                     print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
                 ######## update inner discriminator #########
@@ -200,7 +189,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerD.zero_grad()
                     loss_d.backward()
                     optimizerD.step()
-                    #self.writer.add_scalar('losses/D1_loss', loss_d, iter_s.D_iter)
+                    ##self.writer.add_scalar('losses/D1_loss', loss_d, iter_s.D_iter)
                     iter_s.D_iter += 1
                     print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
                 ######### update generator with inner discri W-GAN Loss ##########
@@ -215,7 +204,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerG.zero_grad()
                     (loss_g + reg_g).backward()
                     optimizerG.step()
-                    #self.writer.add_scalar('losses/G1_loss', loss_g, iter_s.G_iter)
+                    ##self.writer.add_scalar('losses/G1_loss', loss_g, iter_s.G_iter)
                     iter_s.G_iter += 1
                     print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
                     if self.kinetic_learn_every_G_learn:
@@ -225,7 +214,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                             optimizerG.zero_grad()
                             likelihood_reg_loss.backward()
                             optimizerG.step()
-                            #self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
+                            ##self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                             iter_s.G_liker_iter += 1
                             print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
 
@@ -252,11 +241,11 @@ class AEGANSynthesizer(BaseSynthesizer):
                         (last_like_loss + reg_g).backward()
                         optimizerG.step()
 
-                    #self.writer.add_scalar('losses/likelihood_loss', likelihood_loss, iter_s.G_like_iter)
+                    ##self.writer.add_scalar('losses/likelihood_loss', likelihood_loss, iter_s.G_like_iter)
                     iter_s.G_like_iter += 1
                     print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
                     if (likelihood_reg_loss is not None):
-                        #self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
+                        ##self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                         iter_s.G_liker_iter += 1
                         print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)     
             
@@ -267,7 +256,8 @@ class AEGANSynthesizer(BaseSynthesizer):
                        "likelihood_loss": likelihood_loss, "iter_s.G_like_iter": iter_s.G_like_iter,
                        "likelihood_reg_loss": likelihood_reg_loss, "iter_s.G_liker_iter": iter_s.G_liker_iter, "epoch": i}) 
         
-
+        #return the total loss
+        return (loss_ae + loss_ae_g1 + loss_ae_g2 + loss_d + loss_g + likelihood_loss + likelihood_reg_loss)
     def sample(self, n, z_vector = False):
         self.generator.eval()
         self.decoder.eval()

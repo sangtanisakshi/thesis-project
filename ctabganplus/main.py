@@ -42,7 +42,7 @@ def argument_parser():
     parser.add_argument("--non_categorical_columns", nargs='+', default= ['packets','src_pt','dst_pt','duration','bytes'])
     parser.add_argument("--integer_columns", nargs='+', default=[])
     parser.add_argument("--problem_type", type=dict, default={"Classification": 'attack_type'})
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=23)
     parser.add_argument("--save", default=True)
     parser.add_argument("--random_dim", type=int, default=100)
     parser.add_argument("--class_dim", type=int, default=(256, 256, 256, 256))
@@ -58,7 +58,7 @@ def argument_parser():
     parser.add_argument("--ip_path", type=str, default="thesisgan/input/new_train_data.csv")
     parser.add_argument("--op_path", type=str, default="thesisgan/output/")
     parser.add_argument("--test_data", type=str, default="thesisgan/input/new_test_data.csv")
-    
+    parser.add_argument("--n_trials", type=int, default=10)
     args = parser.parse_args()
     return args
 
@@ -89,8 +89,7 @@ def wrapper(train_data, rest_args):
                     config=config,
                     group="CTABGAN_SWEEP_OPTUNA", 
                     notes=rest_args["desc"],
-                    mode="online",
-                    settings=wandb.Settings(start_method='fork'))
+                    mode="offline")
         synthesizer = CTABGANSynthesizer(config)
         start_time = time.time()
         data_prep = DataPrep(train_data,rest_args["categorical_columns"],rest_args["log_columns"],
@@ -105,7 +104,7 @@ def wrapper(train_data, rest_args):
         end_time = time.time()
         print('Finished training in',end_time-train_time," seconds.")
         wandb.log({"training_time": end_time-train_time})
-        wandb.log({"WGAN-GP_experiment": gan_loss})
+        wandb.log({"WGAN-GP_experiment": gan_loss, "trial": trial.number})
         trial = str(trial.number)
         op_path = (rest_args['op_path'] + rest_args['wandb_run'] + "/" + trial + "/")
         test_data, syn_data = sample_data(synthesizer, rest_args, op_path, data_prep)
@@ -204,6 +203,13 @@ def eval(train_data, test_data, sample_data, op_path):
             #add a row with the attack type
             sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
     
+    #if the synthetic data has only one unique value for the attack type, add a row with the attack type
+    sample_data_value_counts = sample_data["attack_type"].value_counts()
+    for i in range(len(sample_data_value_counts)):
+        if sample_data_value_counts[i] == 1:
+            at = sample_data_value_counts.index[i]
+            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
+
     #Model Classification
     model_dict =  {"Classification":["lr","dt","rf","mlp"]}
     result_df, cr = get_utility_metrics(test_data,sample_data,"MinMax", model_dict, test_ratio = 0.30)
@@ -251,7 +257,8 @@ if __name__ == "__main__":
         'non_categorical_columns': args.non_categorical_columns,
         'integer_columns': args.integer_columns,
         'problem_type': args.problem_type,
-        'test_ratio': args.test_ratio
+        'test_ratio': args.test_ratio,
+        'n_trials': args.n_trials,
         }
         train_data = pd.read_csv(args.ip_path)
         le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
@@ -259,9 +266,9 @@ if __name__ == "__main__":
             le_dict[c] = LabelEncoder()
             train_data[c] = le_dict[c].fit_transform(train_data[c])
             train_data[c] = train_data[c].astype("int64")
-        sampler = TPESampler(seed=42)  # Make the sampler behave in a deterministic way and get reproducable results
+        sampler = TPESampler(seed=123)  # Make the sampler behave in a deterministic way and get reproducable results
         study = optuna.create_study(direction="minimize",sampler=sampler)
-        study.optimize(wrapper(train_data, rest_args), n_trials=15)
+        study.optimize(wrapper(train_data, rest_args), n_trials=rest_args["n_trials"])
         joblib.dump(study,("thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.pkl"))
         study_data = pd.DataFrame(study.trials_dataframe())
         data_csv = study_data.to_csv("thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.csv")

@@ -31,7 +31,7 @@ def _parse_args(discrete_columns):
     parser.add_argument('-desc','--description', type=str, default="CTGAN_HPO_OPTUNA", help='Wandb run description')
     parser.add_argument('-op','--output', type=str, default='thesisgan/output/', help='Path of the output file')
     parser.add_argument('-test','--test_data', type=str, default='thesisgan/input/new_test_data.csv', help='Path to test data')
-    parser.add_argument('-s','--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('-s','--seed', type=int, default=23, help='Random seed')
     parser.add_argument('-e', '--epochs', default=150, type=int, help='Number of training epochs')
     parser.add_argument('-d', '--discrete_columns', default=discrete_columns, help='Comma separated list of discrete columns without whitespaces.')
     parser.add_argument('-ver','--verbose', type=bool, default=True, help='Verbose')
@@ -87,19 +87,22 @@ def get_hpo_parameters(trial):
 
 def wrapper(train_data, rest_args):
     def hpo(trial):
+        print("Running trial number: ", trial.number, "out of 20")
         hpo_params = get_hpo_parameters(trial)
         config = {}
         config.update(hpo_params)
         config.update(rest_args)
-        wandb.init(project="masterthesis", config=config, mode="offline", group="CTGAN_HPO_OPTUNA", notes=config['description'])
+        wandb.init(project="masterthesis", config=config, mode="offline", group="CTGAN_HPO_2", 
+                   notes=config['description'])
         model = CTGAN(config)
         gan_loss = model.fit(train_data, config["discrete_columns"], config["epochs"])
-        wandb.log({"WGAN-GP_experiment": gan_loss})
+        wandb.log({"WGAN-GP_experiment": gan_loss, "trial": trial.number})
         # get the current sweep id and create an output folder for the sweep
         trial = str(trial.number)
         op_path = (config['output'] + config['wandb_run'] + "/" + trial + "/")
         test_data, sampled_data = sample(model, wandb.config, op_path)
         eval(train_data, test_data, sampled_data, op_path)
+        wandb.finish()
         return gan_loss
     
     return hpo
@@ -164,7 +167,13 @@ def eval(train_data, test_data, sample_data, op_path):
             print(f"Removing column {col} as it has only one unique value")
             test_data.drop(columns=[col], inplace=True)
             sample_data.drop(columns=[col], inplace=True)
-            
+    
+    le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
+    for c in le_dict.keys():
+        le_dict[c] = LabelEncoder()
+        test_data[c] = le_dict[c].fit_transform(test_data[c])
+        sample_data[c] = le_dict[c].fit_transform(sample_data[c])
+        train_data[c] = le_dict[c].fit_transform(train_data[c])
         
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     for col in cat_cols:
@@ -179,20 +188,18 @@ def eval(train_data, test_data, sample_data, op_path):
     wandb.log({"Evaluation": [wandb.Image(img) for img in imgs]})
     wandb.log(scores)
     
-    le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-    for c in le_dict.keys():
-        le_dict[c] = LabelEncoder()
-        test_data[c] = le_dict[c].fit_transform(test_data[c])
-        sample_data[c] = le_dict[c].fit_transform(sample_data[c])
-        train_data[c] = le_dict[c].fit_transform(train_data[c])
-    
     for col in cat_cols:
         test_data[col] = test_data[col].astype("int64")
         sample_data[col] = sample_data[col].astype("int64")
         train_data[col] = train_data[col].astype("int64")
         
-        #if the synthetic data does not have the same attack types as the test data, we need to fix it
-        
+    #if the synthetic data has only one unique value for the attack type, add a row with the attack type
+    sample_data_value_counts = sample_data["attack_type"].value_counts()
+    for i in range(len(sample_data_value_counts)):
+        if sample_data_value_counts[i] == 1:
+            at = sample_data_value_counts.index[i]
+            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
+
     for at in test_data["attack_type"].unique():
         if at not in sample_data["attack_type"].unique():
             #add a row with the attack type
@@ -292,12 +299,12 @@ def main():
     else:
         if args.hpo:
             print("Training HPO model...")
-            sampler = TPESampler(seed=42)
+            sampler = TPESampler(seed=123)
             study = optuna.create_study(study_name="ctgan_hpo", direction="minimize", sampler=sampler)
-            study.optimize(wrapper(train_data, rest_args), n_trials=15)
+            study.optimize(wrapper(train_data, rest_args), n_trials=20)
             joblib.dump(study,("thesisgan/hpo_results/ctgan_study.pkl"))
             study_data = pd.DataFrame(study.trials_dataframe())
-            data_csv = study_data.to_csv("thesisgan/hpo_results/ctgan_study_results.csv")
+            data_csv = study_data.to_csv("thesisgan/hpo_results/ctgan_hpo/ctgan_study_results.csv")
             print("Number of finished trials: {}".format(len(study.trials)))
             print("Best trial params:")
             for key, value in study.best_params.items():

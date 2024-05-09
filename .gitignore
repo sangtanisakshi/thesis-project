@@ -4,7 +4,6 @@ data/
 .cache/
 ct/
 ctab/
-=1.26.11
 thesisgan/model-outputs/
 thesisgan/input/
 ctgan/.github
@@ -43,3 +42,11 @@ thesisGAN/preprocess_data.py
 ctabgan_batch.job
 ctabgan.yml
 ctgan_batch.job
+thesisgan/hpo_results/ctgan_study_1.pkl
+thesisgan/hpo_results/ctgan_study_2.pkl
+thesisgan/hpo_results/ctgan_study_results_1.csv
+thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.csv
+thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.pkl
+ctgan_2_batch.job
+ctabgan_2_batch.job
+.vscode/

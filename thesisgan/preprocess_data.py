@@ -105,7 +105,7 @@ def hex_to_tcp_flags(hex_value):
     tcp_flags = ''.join([flags[i] if bit == '1' else '.' for i, bit in enumerate(binary_value)])
     return tcp_flags
 
-def preprocess(file_path, model):
+def main(file_path, model):
 
     external_csv = []
     openstack_csv = []
@@ -196,16 +196,16 @@ def preprocess(file_path, model):
             df[c] = np.log(df[c])
         df[c] = (df[c]-df[c].min())/(df[c].max()-df[c].min())
     
-    # # convert ip address to continuous values
-    # ip_data_src = ip_process(df, "src_")
-    # ip_data_dst = ip_process(df, "dst_")
+    # convert ip address to continuous values
+    ip_data_src = ip_process(df, "src_")
+    ip_data_dst = ip_process(df, "dst_")
     
-    # df = pd.concat([df, ip_data_src, ip_data_dst], axis=1)
+    df = pd.concat([df, ip_data_src, ip_data_dst], axis=1)
     
-    # #normalize the ip values
-    # for c in ['src_ip_1', 'src_ip_2', 'src_ip_3', 'src_ip_4', 'dst_ip_1', 'dst_ip_2', 'dst_ip_3', 'dst_ip_4']:
-    #     df[c] = df[c].astype(np.float64)
-    #     df[c] = df[c]/255
+    #normalize the ip values
+    for c in ['src_ip_1', 'src_ip_2', 'src_ip_3', 'src_ip_4', 'dst_ip_1', 'dst_ip_2', 'dst_ip_3', 'dst_ip_4']:
+        df[c] = df[c].astype(np.float64)
+        df[c] = df[c]/255
     
     # if all 4 different -> normal ip
     # if 0 0 0 0 -> normal ip
@@ -217,8 +217,7 @@ def preprocess(file_path, model):
     # then 
     # if first 3 same (not 1,2,3,0,255) then its the anonymized ip
     
-    df.drop(columns=['time_of_day', 'day_of_week', 'attack_id', ''], inplace=True)
-    
+
     # drop columns that are not needed
     df.drop(columns=['src_ip_addr', 'dst_ip_addr','attack_description','flows','flags'], inplace=True)
     df.reset_index(drop=True, inplace=True)
@@ -232,30 +231,27 @@ def preprocess(file_path, model):
     
     print("Total data after preprocessing:", (df.shape))
     print("NA rows check:", df.isna().sum())
-    
-    if model == "ctabgan":
-        columns = ["attack_type", "label", "proto", "day_of_week", "tos"]
-        for c in columns:
-            exec(f'le_{c} = LabelEncoder()')
-            df[c] = globals()[f'le_{c}'].fit_transform(df[c])
-            df[c] = df[c].astype("int64")
+    df.to_csv('thesisgan/input/preprocessed.csv')
+    print("Preprocessing done. Subset data saved to input folder")
 
     print("reorder columns in the raw_df such that the column label is the last column")
     cols = df.columns.tolist()
     cols.remove('label')
     cols.append('label')
     df = df[cols]
-    
-    df.to_csv('thesisgan/input/preprocessed.csv')
-    print("Preprocessing done. Subset data saved to input folder")
+
+    if model == "ctabgan":
+        columns = ["attack_type", "label", "proto", "day_of_week", "tos"]
+        for c in columns:
+            exec(f'le_{c} = LabelEncoder()')
+            df[c] = globals()[f'le_{c}'].fit_transform(df[c])
+            df[c] = df[c].astype("int64")
     
     # Split the data into train test and val
     train_data = df.sample(frac=0.7, random_state=42)
     print("Total training data:", (train_data.shape))
-    train_data.reset_index(drop=True, inplace=True)
     test_data = df.drop(train_data.index)
     print("Total test data:", (test_data.shape))
-    test_data.reset_index(drop=True, inplace=True)
     
     train_data.to_csv('thesisgan/input/train_data.csv', index=False)
     test_data.to_csv('thesisgan/input/test_data.csv', index=False)
@@ -265,18 +261,11 @@ def preprocess(file_path, model):
     elif model == "ctgan":
         print("Preprocessing done for CTGAN. Data saved to input folder")
 
-def inverse_preprocess(fp, model):
-    pass
-
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Preprocess data')
-    parser.add_argument('-fp','--file_path', type=str, default="data/traffic/", help='Path to the csv file to be preprocessed')
-    parser.add_argument('-m','--model', type=str, default="itgan", help='Model for which the data is being preprocessed')
-    parser.add_argument('-op', '--operation', type=str, default="preprocess", help='Operation to be performed')
+    parser.add_argument('-fp','--file_path', type=str, help='Path to the csv file to be preprocessed')
+    parser.add_argument('-m','--model', type=str, help='Model for which the data is being preprocessed')
     args = parser.parse_args()
     
-    if args.operation == "preprocess":
-        preprocess(args.file_path, args.model)
-    else:
-        inverse_preprocess(args.file_path, args.model)
+    main(args.file_path, args.model)

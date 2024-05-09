@@ -304,7 +304,7 @@ def main():
             study.optimize(wrapper(train_data, rest_args), n_trials=20)
             joblib.dump(study,("thesisgan/hpo_results/ctgan_study.pkl"))
             study_data = pd.DataFrame(study.trials_dataframe())
-            data_csv = study_data.to_csv("thesisgan/hpo_results/ctgan_hpo/ctgan_study_results.csv")
+            data_csv = study_data.to_csv("thesisgan/hpo_results/ctgan_study_results.csv")
             print("Number of finished trials: {}".format(len(study.trials)))
             print("Best trial params:")
             for key, value in study.best_params.items():

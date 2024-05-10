@@ -19,15 +19,15 @@ def supervised_model_training(x_train, y_train, x_test,
                               y_test, model_name,problem_type):
   
   if model_name == 'lr':
-    model  = LogisticRegression(random_state=42,max_iter=500) 
+    model  = LogisticRegression(random_state=23,max_iter=1500) 
   elif model_name == 'svm':
-    model  = svm.SVC(random_state=42,probability=True)
+    model  = svm.SVC(random_state=23,probability=True)
   elif model_name == 'dt':
-    model  = tree.DecisionTreeClassifier(random_state=42)
+    model = tree.DecisionTreeClassifier(random_state=23, max_depth=None, min_samples_split=2, min_samples_leaf=1)
   elif model_name == 'rf':      
-    model = RandomForestClassifier(random_state=42)
+    model = RandomForestClassifier(n_estimators=300, random_state=23)
   elif model_name == "mlp":
-    model = MLPClassifier(random_state=42,max_iter=100)
+    model = MLPClassifier(random_state=23,max_iter=300, batch_size=2000)
   elif model_name == "l_reg":
     model = LinearRegression()
   elif model_name == "ridge":

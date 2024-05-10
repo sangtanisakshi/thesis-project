@@ -47,8 +47,7 @@ ctgan_2_batch.job
 ctabgan_2_batch.job
 .vscode/
 research/evaluate_hpo.ipynb
-
-it/logs/itgan_639773.log
-it/logs/itgan_639774.log
-it/logs/itgan_640036.log
+it/logs/*
 batch_itgan_1.job
+research/hpo/*
+research/evaluate_ctabgan_hpo.ipynb

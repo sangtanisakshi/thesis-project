@@ -46,6 +46,8 @@ thesisgan/hpo_results/*
 ctgan_2_batch.job
 ctabgan_2_batch.job
 .vscode/
+research/evaluate_hpo.ipynb
+
 it/logs/itgan_639773.log
 it/logs/itgan_639774.log
 it/logs/itgan_640036.log

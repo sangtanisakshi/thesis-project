@@ -95,24 +95,29 @@ def cr_processing(a, cr_df, model):
   
   return cr_df
 
-def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]},test_ratio=.20):
+def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]}):
 
     data_real = real_data.to_numpy()
     data_dim = data_real.shape[1]
 
     data_real_y = data_real[:,-1]
     data_real_X = data_real[:,:data_dim-1]
+    
+    data_test = test_data.to_numpy()
+    data_dim = test_data.shape[1]
+
+    data_test_y = data_test[:,-1]
+    data_test_X = data_test[:,:data_dim-1]
 
     problem = list(type.keys())[0]
     
     models = list(type.values())[0]
     
-    if problem == "Classification":
-      X_train_real, X_test_real, y_train_real, y_test_real = model_selection.train_test_split(data_real_X ,data_real_y, test_size=test_ratio, stratify=data_real_y,random_state=42) 
-    else:
-      X_train_real, X_test_real, y_train_real, y_test_real = model_selection.train_test_split(data_real_X ,data_real_y, test_size=test_ratio,random_state=42) 
+    X_train_real = data_real_X
+    X_test_real = data_test_X
+    y_train_real = data_real_y
+    y_test_real = data_test_y
     
-
     if scaler=="MinMax":
         scaler_real = MinMaxScaler()
     else:
@@ -136,10 +141,8 @@ def get_utility_metrics(real_data,fake_paths,scaler="MinMax",type={"Classificati
     data_fake_y = data_fake[:,-1]
     data_fake_X = data_fake[:,:data_dim-1]
 
-    if problem=="Classification":
-      X_train_fake, _ , y_train_fake, _ = model_selection.train_test_split(data_fake_X ,data_fake_y, test_size=test_ratio, stratify=data_fake_y,random_state=42) 
-    else:
-      X_train_fake, _ , y_train_fake, _ = model_selection.train_test_split(data_fake_X ,data_fake_y, test_size=test_ratio,random_state=42)  
+    X_train_fake = data_fake_X
+    y_train_fake = data_fake_y  
 
     if scaler=="MinMax":
       scaler_fake = MinMaxScaler()

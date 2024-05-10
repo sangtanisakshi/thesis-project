@@ -43,3 +43,4 @@ thesisGAN/preprocess_data.py
 ctabgan_batch.job
 ctabgan.yml
 ctgan_batch.job
+research/evaluate_hpo.ipynb

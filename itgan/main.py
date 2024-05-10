@@ -2,10 +2,11 @@ import argparse
 import sys
 from types import SimpleNamespace
 import joblib
-sys.path.append("..")    
+sys.path.append(".")    
 import os
 import glob
 import wandb
+os.environ["WANDB_OFFLINE"] = "true"
 import pickle
 import torch
 import time
@@ -34,12 +35,12 @@ def parse_args():
     parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_OPTUNA")
     parser.add_argument('-desc', '--wb_desc', type=str, help= 'Run description', default="Itgan HPO Optuna Run")
     parser.add_argument('--data', type=str, default = 'malware_hpo')
-    parser.add_argument('--op_path', type=str, default = 'thesisgan/hpo_output/')
+    parser.add_argument('--op_path', type=str, default = 'thesisgan/output/')
     parser.add_argument('--seed', type=int, default = 23)
-    parser.add_argument('--hpo', type=argparse.BooleanOptionalAction, default = True)
-    parser.add_argument('--save', type=argparse.BooleanOptionalAction, default = True)
+    parser.add_argument('--hpo', default = True)
+    parser.add_argument('--save', default = True)
     parser.add_argument('--epochs',type =int, default = 1)  
-    parser.add_argument('--n_trials', type=int, default = 1)
+    parser.add_argument('--n_trials', type=int, default = 2)
     parser.add_argument('--num_samples', type=int, default = None)
     parser.add_argument('--emb_dim', type=int, default = 128) # dim(h)
     parser.add_argument('--en_dim', type=str, default = "256,128") # n_e(r) = 2 -> "256,128", 3 -> "512,256,128" 
@@ -55,53 +56,56 @@ def parse_args():
     
     return args
 
-def seed_everything(seed=23):
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+def seed_everything(random_num=23):
+    
+    torch.manual_seed(random_num)
+    torch.cuda.manual_seed(random_num)
+    torch.cuda.manual_seed_all(random_num) # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(random_num)
 
 def get_hpo_parameters(trial):
     emb_dim = trial.suggest_categorical("emb_dim", [32, 64, 128]) #dim(h)
     en_dim = trial.suggest_categorical("en_dim", [(256,128), (512,256,128)]) #n_e(r)
     d_dim = trial.suggest_categorical("d_dim", [(256,256), (256, 256, 256)]) #n_d
-    d_dropout = trial.suggest_categorical("d_dropout", [0, 0.5]) #dropout rate a
-    d_leaky = trial.suggest_categorical("d_leaky", [0, 0.2]) #leaky relu slope b
-    hdim_factor = trial.suggest_categorical("hdim_factor", [1, 1.5]) #M
+    d_dropout = trial.suggest_categorical("D_dropout", [0, 0.5]) #dropout rate a
+    d_leaky = trial.suggest_categorical("D_leaky", [0, 0.2]) #leaky relu slope b
+    hdim_factor = trial.suggest_categorical("hdim_factor", [1., 1.5]) #M
     likelihood_coef = trial.suggest_categorical("likelihood_coef", [-0.1, -0.014, -0.012, -0.01, 0, 0.01, 0.014, 0.05, 0.1]) #gamma
     gt = trial.suggest_categorical("gt", [1, 3, 5, 6]) #period_G
     dt = trial.suggest_categorical("dt", [1, 3, 5, 6]) #period_D
     lt = trial.suggest_categorical("lt", [1, 3, 5, 6]) #period_L
     
-    compress_dims = tuple([int(i) for i in en_dim.split(",")])
-    decompress_dims = compress_dims[::-1]
-    dis_dim = tuple([int(i) for i in d_dim.split(",")])
+    decompress_dims = en_dim[::-1]
     
-    hpo_params = dict({"compress_dims": compress_dims, "decompress_dims": decompress_dims,
-                       "embedding_dim": emb_dim, "dis_dim": dis_dim, 
-                       "d_dropout": d_dropout, "d_leaky": d_leaky, "hdim_factor": hdim_factor, 
-                       "likelihood_coef": likelihood_coef, "gt": gt, "dt": dt, "lt": lt})
+    hpo_params = dict({"compress_dims": en_dim, "decompress_dims": decompress_dims,
+                       "embedding_dim": emb_dim, "dis_dim": d_dim, 
+                       "D_dropout": d_dropout, "D_leaky": d_leaky, "hdim_factor": hdim_factor, 
+                       "likelihood_coef": likelihood_coef, "G_learning_term": gt, "D_learning_term": dt, "likelihood_learn_term": lt})
     print("Hyperparameters for current trial: ",hpo_params)
     return hpo_params
 
 def wrapper(arg, G_args):
     def hpo(trial):
         hpo_params = get_hpo_parameters(trial)
-        arg.update(hpo_params)
-        G_args["hdim_factor"] = arg["hdim_factor"]
-        arg["G_args"] = argument(G_args, arg["embedding_dim"])
-        arg["save_arg"] = arg.copy()
-        wandb.init(project="masterthesis", config=arg, mode="offline", group="ITGAN_HPO_1", notes=arg['description'])
-        synthesizer = AEGANSynthesizer(**arg)
-        train_data, test_data, meta, categoricals, ordinals = load_dataset(arg["data"], benchmark=True)
+        config = {}
+        config.update(hpo_params)
+        G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
+        config.update(arg)
+        wandb.init(project="masterthesis", config=config, mode="offline", group="ITGAN_HPO_1", notes=config['description'])
+        config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
+        synthesizer = AEGANSynthesizer(config)
+        train_df, test_df, meta, categoricals, ordinals = load_dataset(config["data_name"], benchmark=True)
         print("Data Loaded")
-        gan_loss = synthesizer.fit(train_data, test_data, meta, arg["data"], categoricals, ordinals)
+        gan_loss = synthesizer.fit(train_df, test_df, meta, config["data_name"], categoricals, ordinals)
         wandb.log({"WGAN-GP_experiment": gan_loss})
         # get the current sweep id and create an output folder for the sweep
         trial = str(trial.number)
-        op_path = (arg['save_loc'] + arg['wandb_run'] + "/" + trial + "/")
-        test_data, sampled_data = sample(synthesizer, test_data, arg, op_path)
-        eval(train_data, test_data, sampled_data, op_path)
+        op_path = (config['save_loc'] + config['wandb_run'] + "/" + trial + "/")
+        test_data, sampled_data = sample(synthesizer, test_df, config, op_path)
+        eval(train_df, test_data, sampled_data, op_path, trial)
+        wandb.finish()
         return gan_loss
     
     return hpo
@@ -109,16 +113,11 @@ def wrapper(arg, G_args):
 def sample(model, test_data, args, op_path):
         
         os.makedirs(op_path, exist_ok=True)
-        print(f"Saving? {args.save}")
-        if args.save:
+        print("Saving?" + args["save"])
+        if args["save"]:
             pickle.dump(model, open(str(op_path+"model.pkl"), "wb"))
-        
-        # Load test data
-        if test_data.columns[0] == "Unnamed: 0":
-            test_data = test_data.drop(columns="Unnamed: 0")
-        print("Test data loaded")
-    
-        num_samples = test_data.shape[0] if args.num_samples is None else args.num_samples
+            
+        num_samples = test_data.shape[0] if args["num_samples"] is None else args["num_samples"]
 
         sample_start = time.time()
         sampled = model.sample(
@@ -126,20 +125,21 @@ def sample(model, test_data, args, op_path):
         sample_end = time.time() - sample_start
         print(f"Sampling time: {sample_end} seconds")
         wandb.log({"sampling_time": sample_end})
-    
-        print("Data sampling complete. Saving synthetic data...")
-        sampled.to_csv(str(op_path+"syn.csv"), index=False)
-        print("Synthetic data saved. Check the output folder.") 
         
         df_columns = ['duration', 'proto', 'src_pt', 'dst_pt', 'packets',
        'bytes', 'tcp_ack', 'tcp_psh','tcp_rst', 'tcp_syn', 'tcp_fin', 
        'tos','label','attack_type']
         syn_data = pd.DataFrame(sampled, columns=df_columns)
         test_data = pd.DataFrame(test_data, columns=df_columns)
-
+        
+        print("Data sampling complete. Saving synthetic data...")
+        syn_data.to_csv(str(op_path+"syn.csv"), index=False)
+        print("Synthetic data saved. Check the output folder.") 
+        print("Syn Data", syn_data.info())
+        print("Test_data", test_data.info())
         return test_data, syn_data
     
-def eval(train_data, test_data, sample_data, op_path):
+def eval(train_data, test_data: pd.DataFrame, sample_data: pd.DataFrame, op_path, trial):
     eval_metadata = {
         "columns" : 
         {
@@ -160,27 +160,34 @@ def eval(train_data, test_data, sample_data, op_path):
         }
         }
 
+    df_columns = ['duration', 'proto', 'src_pt', 'dst_pt', 'packets',
+    'bytes', 'tcp_ack', 'tcp_psh','tcp_rst', 'tcp_syn', 'tcp_fin', 
+    'tos','label','attack_type']
+    train_data = pd.DataFrame(train_data, columns=df_columns)
+    
+    print(train_data.info())
     #remove columns with only one unique value
     for col in test_data.columns:
         if len(test_data[col].unique()) == 1:
             print(f"Removing column {col} as it has only one unique value")
             test_data.drop(columns=[col], inplace=True)
             sample_data.drop(columns=[col], inplace=True)
-            
+
     le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
     for c in le_dict.keys():
         le_dict[c] = LabelEncoder()
         test_data[c] = le_dict[c].fit_transform(test_data[c])
         sample_data[c] = le_dict[c].fit_transform(sample_data[c])
         train_data[c] = le_dict[c].fit_transform(train_data[c])
-        test_data[col] = test_data[col].astype("int64")
-        sample_data[col] = sample_data[col].astype("int64")
-        train_data[col] = train_data[col].astype("int64")
+        test_data[c] = test_data[c].astype("int64")
+        sample_data[c] = sample_data[c].astype("int64")
+        train_data[c] = train_data[c].astype("int64")
         
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     for col in cat_cols:
         test_data[col] = test_data[col].astype(str)
         sample_data[col] = sample_data[col].astype(str)
+        train_data[col] = train_data[col].astype(str)
     
     #Data Evaluation
     scores = eval_model(test_data, sample_data, eval_metadata, op_path)
@@ -190,15 +197,13 @@ def eval(train_data, test_data, sample_data, op_path):
     wandb.log({"Evaluation": [wandb.Image(img) for img in imgs]})
     wandb.log(scores)
     
-    for col in cat_cols:
-        test_data[col] = test_data[col].astype("int64")
-        sample_data[col] = sample_data[col].astype("int64")
-        train_data[col] = train_data[col].astype("int64")
-        
+    print(test_data.attack_type.unique(), sample_data.attack_type.unique(), train_data.attack_type.unique())
+    
     #if the synthetic data does not have the same attack types as the test data, we need to fix it
-    for at in test_data["attack_type"].unique():
-        if at not in sample_data["attack_type"].unique():
+    for at in test_data.attack_type.unique():
+        if at not in sample_data.attack_type.unique():
             #add a row with the attack type
+            print(at)
             sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
     
     #if the synthetic data has only one unique value for the attack type, add a row with the attack type
@@ -207,7 +212,17 @@ def eval(train_data, test_data, sample_data, op_path):
         if sample_data_value_counts[i] == 1:
             at = sample_data_value_counts.index[i]
             sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
-
+            
+    cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
+    for col in cat_cols:
+        test_data[col] = test_data[col].astype("float64")
+        test_data[col] = test_data[col].astype("int64")
+        sample_data[col] = sample_data[col].astype("float64")
+        sample_data[col] = sample_data[col].astype("int64")
+        train_data[col] = train_data[col].astype("float64")
+        train_data[col] = train_data[col].astype("int64")
+    
+    
     #Model Classification
     model_dict =  {"Classification":["lr","dt","rf","mlp"]}
     result_df, cr = get_utility_metrics(test_data,sample_data,"MinMax", model_dict, test_ratio = 0.30)
@@ -218,6 +233,10 @@ def eval(train_data, test_data, sample_data, op_path):
 
     stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
     stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
+    
+    result_df["trial"] = trial
+    cr["trial"] = trial
+    stat_results["trial"] = trial
     
     wandb.log({'Stat Results' : wandb.Table(dataframe=stat_results), 
                'Classification Results': wandb.Table(dataframe=result_df),
@@ -273,13 +292,14 @@ if __name__ == "__main__":
             'jacobian_norm2' : 1., # int_t ||df/dx||_F^2 <float, None>
             'total_deriv' : None, # int_t ||df/dt||^2 <float, None>
             'directional_penalty' : None,  # int_t ||(df/dx)^T f||^2 <float, None>
-            'adjoint' : True} # use adjoint method for backpropagation [True, False]
+            'adjoint' : True
+            } # use adjoint method for backpropagation [True, False]
     
     arg = {
             "rtol":1e-3,
             "atol":1e-3,
             "batch_size":2000,
-            "random_num":777,
+            "random_num":23,
             "GPU_NUM":0,
             "G_model":Generator,
             "G_lr":2e-4,
@@ -316,7 +336,7 @@ if __name__ == "__main__":
         }
     
     if arg_of_parser.hpo:
-        arg["data"] = "malware_hpo"
+        arg["data_name"] = "malware_hpo"
     
     else:
         compress_dims = tuple([int(i) for i in arg_of_parser.en_dim.split(",")])
@@ -324,7 +344,7 @@ if __name__ == "__main__":
         dis_dim = tuple([int(i) for i in arg_of_parser.d_dim.split(",")])
     
         arg.update = {
-            "data": "malware",
+            "data_name": "malware",
             "embedding_dim": arg_of_parser.emb_dim,
             "dis_dim": dis_dim,
             "G_learning_term" : arg_of_parser.gt,
@@ -346,11 +366,11 @@ if __name__ == "__main__":
         
     if arg_of_parser.hpo:
         study = optuna.create_study(direction="minimize", sampler=TPESampler(seed=123))
-        study.optimize(wrapper(arg, G_args), n_trials=1)
+        study.optimize(wrapper(arg, G_args), n_trials=arg_of_parser.n_trials)
         print("HPO complete. Check the output folder")
-        joblib.dump(study,("thesisgan/hpo_results/itgan_hpo_study.pkl"))
+        joblib.dump(study,(f"thesisgan/hpo_results/itgan_hpo_study_{arg_of_parser.wandb_run}.pkl"))
         study_data = pd.DataFrame(study.trials_dataframe())
-        data_csv = study_data.to_csv("thesisgan/hpo_results/itgan_study_results.csv")
+        data_csv = study_data.to_csv(f"thesisgan/hpo_results/itgan_study_results_{arg_of_parser.wandb_run}.csv")
         print("Number of finished trials: {}".format(len(study.trials)))
         print("Best trial params:")
         for key, value in study.best_params.items():

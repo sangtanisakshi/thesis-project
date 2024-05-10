@@ -43,7 +43,7 @@ def write_metadata(metadata: list, problem_type: str, path: Path) -> None:
 # - two keys: "train" and "test", based on some user defined split ratio
 # - each key is a numpy array with the same number of columns as the input DataFrame
 # - each categorical column is encoded as integers according to the metadata
-def write_npz(df: pd.DataFrame, metadata: list, path: Path, split_ratio: float = 0.8) -> None:
+def write_npz(train: pd.DataFrame, test: pd.DataFrame, metadata: list, path: Path) -> None:
     """ Write DataFrame to a npz file
 
     Args:
@@ -52,8 +52,6 @@ def write_npz(df: pd.DataFrame, metadata: list, path: Path, split_ratio: float =
         path (Path): Path to save the file
         split_ratio (float, optional): Split ratio. Defaults to 0.8.
     """
-    train = df.sample(frac=split_ratio, random_state=42)
-    test = df.drop(train.index)
     for column in metadata:
         if column["type"] == "categorical":
             i2s = column["i2s"]
@@ -63,19 +61,24 @@ def write_npz(df: pd.DataFrame, metadata: list, path: Path, split_ratio: float =
     
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--dataset", type=str, default="malware")
+    argparser.add_argument("--dataset", type=str, default="malware_hpo")
     argparser.add_argument("--problem_type", type=str, default="multiclass_classification")
-    argparser.add_argument("--data_path", type=str, default="../thesisgan/input/preprocessed.csv")
-    argparser.add_argument("--output_path", type=str, default="util/data")
+    argparser.add_argument("--train_path", type=str, default="thesisgan/input/new_hpo_data.csv")
+    argparser.add_argument("--test_path", type=str, default="thesisgan/input/new_test_data.csv")
+    argparser.add_argument("--output_path", type=str, default="thesisgan/input/")
     argparser.add_argument("-sr", "--split_ratio", type=float, default=0.70)
     argparser.add_argument("--seed", type=int, default=42)
     args = argparser.parse_args()
     np.random.seed(args.seed)
-    read_path = Path(args.data_path)
-    save_path_npz = Path(args.output_path) / Path(args.dataset + ".npz")
-    save_path_json = Path(args.output_path) / Path(args.dataset + ".json")
-    df = pd.read_csv(read_path, index_col=[0])
-    df.reset_index(drop=True, inplace=True)
-    metadata = get_metadata(df)
-    write_metadata(metadata, args.problem_type, save_path_json)
-    write_npz(df, metadata, save_path_npz, args.split_ratio)
+    save_path_npz_train = Path(args.output_path) / Path(args.dataset + ".npz")
+    save_path_json_train = Path(args.output_path) / Path(args.dataset + ".json")
+    save_path_json_test = Path(args.output_path) / Path(args.dataset + "_test.json")
+    train_df = pd.read_csv(args.train_path)
+    test_df = pd.read_csv(args.test_path)
+    train_df.reset_index(drop=True, inplace=True)
+    test_df.reset_index(drop=True, inplace=True)
+    train_metadata = get_metadata(train_df)
+    test_metadata = get_metadata(test_df)
+    write_metadata(train_metadata, args.problem_type, save_path_json_train)
+    write_metadata(test_metadata, args.problem_type, save_path_json_test)
+    write_npz(train_df, test_df, train_metadata, save_path_npz_train)

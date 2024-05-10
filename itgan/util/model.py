@@ -1,3 +1,4 @@
+import time
 import warnings, datetime
 warnings.filterwarnings(action='ignore')
 import numpy as np
@@ -66,32 +67,31 @@ def calc_gradient_penalty(netD, real_data, fake_data, device, lambda_grad):
     return gradient_penalty
 
 class AEGANSynthesizer(BaseSynthesizer):
-    def __init__(self, rtol, atol, batch_size, epochs, random_num, GPU_NUM, save_loc, save_arg, data_name, test_name,
-                G_model, embedding_dim, G_args, G_lr, G_beta, G_l2scale, G_l1scale, G_learning_term, 
-                likelihood_coef, likelihood_learn_start_score, likelihood_learn_term, kinetic_learn_every_G_learn,
-                D_model, dis_dim, lambda_grad, D_lr, D_beta, D_l2scale, D_learning_term, D_leaky, D_dropout,
-                En_model, compress_dims, AE_lr, AE_beta, AE_l2scale, ae_learning_term, ae_learning_term_g,
-                De_model, decompress_dims, L_func, loss_factor, train=True):
+    
+    def __init__(self, config):
+        
+        self.G_model = config['G_model']; self.embedding_dim = config['embedding_dim']; self.G_args = config['G_args']
+        self.G_lr = config['G_lr']; self.G_beta = config['G_beta']; self.G_l2scale = config['G_l2scale']
+        self.G_l1scale = config['G_l1scale']; self.G_learning_term = config['G_learning_term']
+        self.likelihood_coef = config['likelihood_coef']; self.likelihood_learn_start_score = config['likelihood_learn_start_score']
+        self.likelihood_learn_term = config['likelihood_learn_term']; self.kinetic_learn_every_G_learn = config['kinetic_learn_every_G_learn']
+        
+        self.D_model = config['D_model']; self.dis_dim = config['dis_dim']; self.lambda_grad = config['lambda_grad']
+        self.D_lr = config['D_lr']; self.D_beta = config['D_beta']; self.D_l2scale = config['D_l2scale']; self.D_learning_term = config['D_learning_term']
+        self.D_leaky = config['D_leaky']; self.D_dropout = config['D_dropout'];
+        
+        self.En_model = config['En_model']; self.compress_dims = config['compress_dims']; self.AE_lr = config['AE_lr']
+        self.AE_beta = config['AE_beta']; self.AE_l2scale = config['AE_l2scale']; self.loss_factor = config['loss_factor']
+        self.ae_learning_term = config['ae_learning_term']; self.ae_learning_term_g = config['ae_learning_term_g']
+        self.De_model = config['De_model']; self.decompress_dims = config['decompress_dims']; self.L_func = config['L_func']
+        
+        self.rtol = config['rtol']; self.atol = config['atol']; self.batch_size = config['batch_size']; self.epochs = config['epochs']
+        self.random_num = config['random_num']; self.GPU_NUM = config['GPU_NUM']; self.save_loc = config['save_loc']
+        self.GPU_NUM = config["GPU_NUM"]; self.data_name = config['data_name']
+        
+        
+        self.device = torch.device(f'cuda:{self.GPU_NUM}' if torch.cuda.is_available() else 'cpu') 
 
-        self.G_model=G_model; self.embedding_dim=embedding_dim; self.G_args=G_args; self.G_lr=G_lr; self.G_beta=G_beta; self.G_l2scale=G_l2scale
-        self.G_l1scale = G_l1scale ; self.G_learning_term = G_learning_term; 
-        self.likelihood_coef = likelihood_coef; self.likelihood_learn_start_score = likelihood_learn_start_score
-        self.likelihood_learn_term = likelihood_learn_term ; self.kinetic_learn_every_G_learn = kinetic_learn_every_G_learn
-
-        self.D_model=D_model; self.dis_dim=dis_dim; self.lambda_grad=lambda_grad; self.D_lr=D_lr; self.D_beta=D_beta
-        self.D_l2scale=D_l2scale ; self.D_learning_term = D_learning_term ; self.D_leaky = D_leaky ; self.D_dropout = D_dropout
-       
-       
-        self.En_model=En_model; self.compress_dims=compress_dims; self.AE_lr=AE_lr; self.AE_beta=AE_beta; self.AE_l2scale=AE_l2scale
-        self.De_model=De_model; self.decompress_dims=decompress_dims; self.L_func=L_func; self.loss_factor = loss_factor ; 
-        self.ae_learning_term = ae_learning_term ; self.ae_learning_term_g = ae_learning_term_g
-
-        self.rtol=rtol; self.atol=atol; self.batch_size=batch_size; self.epochs=epochs; self.random_num=random_num ; self.save_loc = save_loc
-        self.GPU_NUM = GPU_NUM ; self.save_arg = save_arg ; self.data_name = data_name ; self.test_name = test_name
-        self.device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu') 
-
-        # for random
-        fix_random_seed(self.random_num)
         
     def fit(self, train_data, test_data, meta_data, dataset_name, categorical_columns, ordinal_columns):
         self.train = train_data.copy()
@@ -126,6 +126,7 @@ class AEGANSynthesizer(BaseSynthesizer):
         
         mean_z = torch.zeros(self.batch_size, self.embedding_dim, device=self.device)
         std_z = mean_z + 1
+        train_start = time.time()
         print("epochs = ", self.epochs) 
         for i in range(self.epochs):
             print("Current epoch = ", i)
@@ -140,7 +141,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     emb = encoder(real) 
                     rec, sigmas = self.decoder(emb)
                     loss_1, loss_2 = self.L_func( 
-                        rec, real, sigmas, emb,  self.transformer.output_info, self.loss_factor)
+                        rec, real, sigmas, emb, self.transformer.output_info, self.loss_factor)
                     loss_ae = loss_1 + loss_2
                     optimizerEn.zero_grad()
                     optimizerDe.zero_grad()
@@ -150,7 +151,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
                     ##self.writer.add_scalar('losses/AE_loss', loss_ae, iter_s.ae_iter)
                     iter_s.ae_iter += 1
-                    print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
+                    #print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
                 ######## AutoEncoder Learning Gan loss #########
                 if term_check(self.ae_learning_term_g, iter):
                     fakez = torch.normal(mean=mean_z, std=std_z)
@@ -165,7 +166,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerDe.step()
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
                     ##self.writer.add_scalar('losses/AE_G1_loss', loss_ae_g1, iter_s.ae_g_iter)
-                    print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
+                    #print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
                     real_h = encoder(real) 
                     loss_ae_g2 = 0
                     if self.D_learning_term != 0:
@@ -175,7 +176,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerEn.step()
                     ##self.writer.add_scalar('losses/AE_G2_loss', loss_ae_g2, iter_s.ae_g_iter)
                     iter_s.ae_g_iter += 1
-                    print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
+                    #print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
                 ######## update inner discriminator #########
                 if term_check(self.D_learning_term, iter):
                     real_h = encoder(real)       
@@ -191,7 +192,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerD.step()
                     ##self.writer.add_scalar('losses/D1_loss', loss_d, iter_s.D_iter)
                     iter_s.D_iter += 1
-                    print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
+                    #print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
                 ######### update generator with inner discri W-GAN Loss ##########
                 if self.D_learning_term != 0 and term_check(self.G_learning_term, iter):
                     fakez = torch.normal(mean=mean_z, std=std_z)
@@ -206,7 +207,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerG.step()
                     ##self.writer.add_scalar('losses/G1_loss', loss_g, iter_s.G_iter)
                     iter_s.G_iter += 1
-                    print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
+                    #print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
                     if self.kinetic_learn_every_G_learn:
                         real_h = encoder(real) # 수정
                         likelihood_loss, likelihood_reg_loss = self.generator.compute_likelihood_loss(real_h)
@@ -216,7 +217,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                             optimizerG.step()
                             ##self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                             iter_s.G_liker_iter += 1
-                            print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
+                            #print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
 
                 ######## update generator with Likelihood Loss ##########
                 if term_check(self.likelihood_learn_term, iter):
@@ -243,11 +244,11 @@ class AEGANSynthesizer(BaseSynthesizer):
 
                     ##self.writer.add_scalar('losses/likelihood_loss', likelihood_loss, iter_s.G_like_iter)
                     iter_s.G_like_iter += 1
-                    print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
+                    #print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
                     if (likelihood_reg_loss is not None):
                         ##self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                         iter_s.G_liker_iter += 1
-                        print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)     
+                       #print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)     
             
             wandb.log({"AE_loss": loss_ae, "iter_s.ae_iter": iter_s.ae_iter, 
                        "AE_G1_loss": loss_ae_g1, "AE_G2_loss": loss_ae_g2,  "iter_s.ae_g_iter": iter_s.ae_g_iter,
@@ -255,9 +256,21 @@ class AEGANSynthesizer(BaseSynthesizer):
                        "G1_loss": loss_g, "iter_s.G_iter": iter_s.G_iter, 
                        "likelihood_loss": likelihood_loss, "iter_s.G_like_iter": iter_s.G_like_iter,
                        "likelihood_reg_loss": likelihood_reg_loss, "iter_s.G_liker_iter": iter_s.G_liker_iter, "epoch": i}) 
+            
+            print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
+            print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
+            print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
+            print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
+            print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
+            print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
+            print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
+            print("Time taken for epoch = ", time.time()-train_start)
         
+        print("Training time: ", time.time() - train_start)
+        wandb.log({"Training time":(time.time() - train_start)})
         #return the total loss
-        return (loss_ae + loss_ae_g1 + loss_ae_g2 + loss_d + loss_g + likelihood_loss + likelihood_reg_loss)
+        return loss_ae_g1
+    
     def sample(self, n, z_vector = False):
         self.generator.eval()
         self.decoder.eval()

@@ -42,11 +42,11 @@ thesisGAN/preprocess_data.py
 ctabgan_batch.job
 ctabgan.yml
 ctgan_batch.job
-thesisgan/hpo_results/ctgan_study_1.pkl
-thesisgan/hpo_results/ctgan_study_2.pkl
-thesisgan/hpo_results/ctgan_study_results_1.csv
-thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.csv
-thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.pkl
+thesisgan/hpo_results/*
 ctgan_2_batch.job
 ctabgan_2_batch.job
 .vscode/
+it/logs/itgan_639773.log
+it/logs/itgan_639774.log
+it/logs/itgan_640036.log
+batch_itgan_1.job

@@ -13,21 +13,26 @@ from scipy.stats import wasserstein_distance
 from scipy.spatial import distance
 import warnings
 
+from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
+from xgboost import XGBClassifier
+
 warnings.filterwarnings("ignore")
 
 def supervised_model_training(x_train, y_train, x_test, 
-                              y_test, model_name,problem_type):
+                              y_test, model_name,problem_type, sample_weights=None):
   
   if model_name == 'lr':
-    model  = LogisticRegression(random_state=23,max_iter=1500) 
+    model  = LogisticRegression(random_state=23,max_iter=1500, class_weight="balanced")
   elif model_name == 'svm':
     model  = svm.SVC(random_state=23,probability=True)
   elif model_name == 'dt':
-    model = tree.DecisionTreeClassifier(random_state=23, max_depth=None, min_samples_split=2, min_samples_leaf=1)
+    model = tree.DecisionTreeClassifier(random_state=23, max_depth=None, min_samples_split=2, min_samples_leaf=1, class_weight="balanced")
   elif model_name == 'rf':      
-    model = RandomForestClassifier(n_estimators=300, random_state=23)
+    model = RandomForestClassifier(n_estimators=300, random_state=23, class_weight="balanced")
   elif model_name == "mlp":
     model = MLPClassifier(random_state=23,max_iter=300, batch_size=2000)
+  elif model_name == "xgb":
+    model = XGBClassifier(random_state=23, objective="multi:softmax", num_class=5, eval_metric="mlogloss", n_estimators=300)
   elif model_name == "l_reg":
     model = LinearRegression()
   elif model_name == "ridge":
@@ -37,7 +42,10 @@ def supervised_model_training(x_train, y_train, x_test,
   elif model_name == "B_ridge":
     model = BayesianRidge()
   
-  model.fit(x_train, y_train)
+  if model_name in ["lr","dt","xgb"]:
+    model.fit(x_train, y_train, sample_weight=sample_weights)
+  else:
+    model.fit(x_train, y_train)
   pred = model.predict(x_test)
 
   if problem_type == "Classification":
@@ -127,10 +135,11 @@ def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Cl
     X_train_real_scaled = scaler_real.transform(X_train_real)
     X_test_real_scaled = scaler_real.transform(X_test_real)
 
+    sample_weights = compute_sample_weight(class_weight='balanced', y=y_train_real)
     all_real_results = []
     real_cr = pd.DataFrame()
     for model in models:
-      real_results, real_classification_report = supervised_model_training(X_train_real_scaled,y_train_real,X_test_real_scaled,y_test_real,model,problem)
+      real_results, real_classification_report = supervised_model_training(X_train_real_scaled,y_train_real,X_test_real_scaled,y_test_real,model,problem, sample_weights=sample_weights)
       print("Model: ", model,"trained on real data")
       all_real_results.append(real_results)
       real_cr = cr_processing(real_classification_report, real_cr, model)

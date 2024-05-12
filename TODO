@@ -1,26 +1,22 @@
-python3.10 -m pip install torch==1.12.0 torchvision==0.12.0 torchaudio==0.11.0 --index-url https://download.pytorch.org/whl/cu113
-
-- Move data cleaning pynb to python file:
-    - sample the data 
-## DONE
-
-- Know the data formats of all 3 models (input/output)
-    - test input output
-## TGAN has OOM issues
-## TableGAN preprocess issues
-    - write data adapters for each model
-- Integrate wandb
-- Have a cli and sh file for all 3
-- use wandb/hydra to log cli inputs and possibly do hyperparametertuning
-- write model outputs to a common data format
-- (clean data), get the outputs and then run evaluations in some notebook
+TODO 10th May:
+- Add XGBoost to the evaluation for all runs x 3
+- Select best run from macro_avg + loss functions x 3
+- Run with the best runs x 3
+- Run CTGAN with a condition to "oversample" the bruteforce and pingscan and then evaluation
+- Run CTGAN where all the attack types are equally distributed
+- Label as target value - binary classification on all three final models
+- CTGAN with Label target value equally distributed
+- Add cross validation??
 
 
-TODO for the data:
-- use data first without the date column and see how the results are 
-- check results with date column (specifically CTGAN)
-
-
-TODO NEW 5th May:
-- Run ITGAN and send it to slurm
-- 
+Experiments total:
+- HPO run for all three 
+- Best run for all three
+- CTGAN with no condition
+- CTGAN with condition - oversample the underrepresented classes
+- CTGAN with condition - equal distribution of all classes
+- Label as target value - binary classification on all three final models
+- CTGAN with Label target value equally distributed
+- Add cross validation??
+- Compare training time for all 3
+- Compare sampling time for all 3

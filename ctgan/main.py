@@ -100,7 +100,7 @@ def wrapper(train_data, rest_args):
         # get the current sweep id and create an output folder for the sweep
         trial = str(trial.number)
         op_path = (config['output'] + config['wandb_run'] + "/" + trial + "/")
-        test_data, sampled_data = sample(model, wandb.config, op_path)
+        test_data, sampled_data = sample(model, config, op_path)
         eval(train_data, test_data, sampled_data, op_path)
         wandb.finish()
         return gan_loss
@@ -110,27 +110,27 @@ def wrapper(train_data, rest_args):
 def sample(model, args, op_path):
         
         os.makedirs(op_path, exist_ok=True)
-        print(f"Saving? {args.save}")
-        if args.save:
+        print("Saving?", str(args["save"]))
+        if args["save"]:
             CTGAN.save(model, str(op_path+"model.pkl"))
             pickle.dump(model, open(str(op_path+"pklmodel.pkl"), "wb"))
         
         # Load test data
-        test_data = pd.read_csv(args.test_data)
+        test_data = pd.read_csv(args["test_data"])
         if test_data.columns[0] == "Unnamed: 0":
             test_data = test_data.drop(columns="Unnamed: 0")
         print("Test data loaded")
     
-        num_samples = test_data.shape[0] if args.num_samples is None else args.num_samples
+        num_samples = test_data.shape[0] if args["num_samples"] is None else args["num_samples"]
 
-        if args.sample_condition_column is not None:
-            assert args.sample_condition_column_value is not None
+        if args["sample_condition_column"] is not None:
+            assert args["sample_condition_column_value"] is not None
 
         sample_start = time.time()
         sampled = model.sample(
             num_samples,
-            args.sample_condition_column,
-            args.sample_condition_column_value)
+            args["sample_condition_column"],
+            args["sample_condition_column_value"])
         sample_end = time.time() - sample_start
         print(f"Sampling time: {sample_end} seconds")
         wandb.log({"sampling_time": sample_end})
@@ -206,8 +206,8 @@ def eval(train_data, test_data, sample_data, op_path):
             sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
     
     #Model Classification
-    model_dict =  {"Classification":["lr","dt","rf","mlp"]}
-    result_df, cr = get_utility_metrics(test_data,sample_data,"MinMax", model_dict, test_ratio = 0.30)
+    model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
+    result_df, cr = get_utility_metrics(train_data,test_data,sample_data,"MinMax",model_dict)
 
     stat_res_avg = []
     stat_res = stat_sim(test_data, sample_data, cat_cols)
@@ -268,23 +268,7 @@ def main():
         'pac': args.pac,
         }
     else:
-        wandb_logging = wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description, group="CTGAN")
-        config = {
-        'embedding_dim': args.embedding_dim,
-        'generator_dim': args.generator_dim,
-        'discriminator_dim': args.discriminator_dim,
-        'generator_lr': args.generator_lr,
-        'generator_decay': args.generator_decay,
-        'discriminator_lr': args.discriminator_lr,
-        'discriminator_decay': args.discriminator_decay,
-        'batch_size': args.batch_size,
-        'discriminator_steps': args.discriminator_steps,
-        'log_frequency': args.log_frequency,
-        'verbose': args.verbose,
-        'epochs': args.epochs,
-        'pac': args.pac,
-        'lambda_' : args.lambda_,
-        }
+        config = args.__dict__
 
     train_data = pd.read_csv(args.data)
 
@@ -304,19 +288,23 @@ def main():
             study.optimize(wrapper(train_data, rest_args), n_trials=20)
             joblib.dump(study,("thesisgan/hpo_results/ctgan_study.pkl"))
             study_data = pd.DataFrame(study.trials_dataframe())
-            data_csv = study_data.to_csv("thesisgan/hpo_results/ctgan_study_results.csv")
+            study_data.to_csv("thesisgan/hpo_results/ctgan_study_results.csv")
             print("Number of finished trials: {}".format(len(study.trials)))
             print("Best trial params:")
             for key, value in study.best_params.items():
                 print(" {}: {}".format(key, value))
-    
-            #get best trial hyperparameters and train the model with that
-            best_params = SimpleNamespace(**study.best_params)
         else:
+            wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description,
+                                   group="CTGAN-MAIN", mode="offline")
             print("Training model...")
-            model = CTGAN(wandb.config)
+            model = CTGAN(config)
             gan_loss = model.fit(train_data, discrete_columns, args.epochs)
             wandb.log({"gan_loss": gan_loss})
-
+            wandb.log({"WGAN-GP_experiment": gan_loss})
+            config.update(args.__dict__)
+            op_path = (args.output + args.wandb_run  + "/")
+            test_data, sampled_data = sample(model, config, op_path)
+            eval(train_data, test_data, sampled_data, op_path)
+            wandb.finish()
 if __name__ == '__main__':
     main()

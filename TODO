@@ -1,12 +1,12 @@
 TODO 10th May:
-- Add XGBoost to the evaluation for all runs x 3
-- Select best run from macro_avg + loss functions x 3
-- Run with the best runs x 3
+- Add XGBoost to the evaluation for all runs x 3 - DONE
+- Select best run from macro_avg + loss functions x 3 - DONE FOR 2
+- Run with the best runs x 3 - DONE FOR 2
 - Run CTGAN with a condition to "oversample" the bruteforce and pingscan and then evaluation
 - Run CTGAN where all the attack types are equally distributed
 - Label as target value - binary classification on all three final models
 - CTGAN with Label target value equally distributed
-- Add cross validation??
+- Add cross validation with attack type as the split and 5 folds and the label as target value where it is binary - normal or attacker
 
 
 Experiments total:
@@ -15,8 +15,16 @@ Experiments total:
 - CTGAN with no condition
 - CTGAN with condition - oversample the underrepresented classes
 - CTGAN with condition - equal distribution of all classes
+- Add cross validation with attack type as the split and 5 folds and the label as target value where it is binary - normal or attacker
 - Label as target value - binary classification on all three final models
 - CTGAN with Label target value equally distributed
-- Add cross validation??
 - Compare training time for all 3
 - Compare sampling time for all 3
+- Add UniformSynthesizer as baseline
+
+- Meeting:
+- Tell them cross validation is not feasible on itgan
+- Ask :
+    1. Related Work -> General papers, and then our 3 models 
+        or
+    2. Related Work -> General papers AND then Models -> Going deeper into our 3 models

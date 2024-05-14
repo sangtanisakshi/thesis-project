@@ -33,7 +33,7 @@ def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--wandb_run", type=str, default="ctabgan_sweep_run")
     parser.add_argument("--desc", type=str, default="HPO Run for CTABGAN with optuna")
-    parser.add_argument("--hpo", default=True)
+    parser.add_argument("--hpo", default=False)
     parser.add_argument("--test_ratio", type=float, default=0.00003)
     parser.add_argument("--categorical_columns", nargs='+', default=['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type'])
     parser.add_argument("--log_columns", nargs='+', default=[])
@@ -45,14 +45,14 @@ def argument_parser():
     parser.add_argument("--seed", type=int, default=23)
     parser.add_argument("--save", default=True)
     parser.add_argument("--random_dim", type=int, default=100)
-    parser.add_argument("--class_dim", type=int, default=(256, 256, 256, 256))
+    parser.add_argument("--class_dim", type=str, default=(256, 256, 256, 256))
     parser.add_argument("--num_channels", type=int, default=64)
     parser.add_argument("--weight_decay", type=float, default=1e-5)
     parser.add_argument("-bs", "--batch_size", type=int, default=500)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("-ns", "--num_samples", type=int, default=None)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
-    parser.add_argument("-lr_betas", "--lr_betas", type=tuple, default=(0.5, 0.9))
+    parser.add_argument("-lr_betas", "--lr_betas", type=tuple, default=(0.9, 0.999))
     parser.add_argument("-eps", "--eps", type=float, default=1e-3)
     parser.add_argument("--lambda_", type=float, default=10)
     parser.add_argument("--ip_path", type=str, default="thesisgan/input/new_train_data.csv")
@@ -211,8 +211,8 @@ def eval(train_data, test_data, sample_data, op_path):
             sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
 
     #Model Classification
-    model_dict =  {"Classification":["lr","dt","rf","mlp"]}
-    result_df, cr = get_utility_metrics(test_data,sample_data,"MinMax", model_dict, test_ratio = 0.30)
+    model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
+    result_df, cr = get_utility_metrics(train_data,test_data,sample_data,"MinMax", model_dict)
 
     stat_res_avg = []
     stat_res = stat_sim(test_data, sample_data, cat_cols)
@@ -280,5 +280,32 @@ if __name__ == "__main__":
         #get best trial hyperparameters and train the model with that
         best_params = SimpleNamespace(**study.best_params)
     else:
-       wandb_logging = wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description, group="CTABGAN+")
+        train_data = pd.read_csv(args.ip_path)
+        print("Training non-hpo model")
+        #convert args to a dictionary
+        config = args.__dict__
+        wandb.init(project="masterthesis",
+                    config=config,
+                    group="CTABGAN_SWEEP_OPTUNA", 
+                    notes=config["desc"],
+                    mode="offline")
+        synthesizer = CTABGANSynthesizer(config)
+        start_time = time.time()
+        data_prep = DataPrep(train_data,config["categorical_columns"],config["log_columns"],
+                                config["mixed_columns"],["general_columns"],
+                                config["non_categorical_columns"],config["integer_columns"],
+                            config["problem_type"],config["test_ratio"])
+        print("Data preparation complete. Time taken: ",time.time()-start_time)
+        print("Starting training...")
+        train_time = time.time()
+        gan_loss = synthesizer.fit(train_data=data_prep.df, categorical = data_prep.column_types["categorical"], mixed = data_prep.column_types["mixed"],
+        general = data_prep.column_types["general"], non_categorical = data_prep.column_types["non_categorical"], type=config["problem_type"])
+        end_time = time.time()
+        print('Finished training in',end_time-train_time," seconds.")
+        wandb.log({"training_time": end_time-train_time})
+        wandb.log({"WGAN-GP_experiment": gan_loss})
+        op_path = (config['op_path'] + config['wandb_run'] + "/")
+        test_data, syn_data = sample_data(synthesizer, config, op_path, data_prep)
+        eval(train_data, test_data, syn_data, op_path)
+        wandb.finish()
        

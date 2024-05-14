@@ -153,8 +153,8 @@ class CTGAN(BaseSynthesizer):
         assert config["batch_size"] % 2 == 0
 
         self._embedding_dim = config["embedding_dim"]
-        self._generator_dim = config["generator_dim"]
-        self._discriminator_dim = config["discriminator_dim"]
+        self._generator_dim = tuple([int(i) for i in config["generator_dim"].split(",")])
+        self._discriminator_dim = tuple([int(i) for i in config["discriminator_dim"].split(",")])
 
         self._generator_lr = config["generator_lr"]
         self._generator_decay = config["generator_decay"]

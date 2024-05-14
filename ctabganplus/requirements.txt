@@ -7,10 +7,10 @@ nbformat==5.10.4
 pip==23.3.1
 plotly==5.20.0
 pandas==2.0.3
-scikit-learn==1.3.0
+scikit-learn==1.4.1.post1
 sdmetrics==0.13.0
 dython==0.7.3
-scipy==1.4.1
+scipy==1.11.4
 seaborn==0.13.0
 sdv
 table-evaluator

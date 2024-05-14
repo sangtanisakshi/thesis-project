@@ -1,6 +1,5 @@
 import json
 import os
-import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -11,7 +10,6 @@ from .constants import CATEGORICAL, ORDINAL, CONTINUOUS
 import warnings
 warnings.filterwarnings(action='ignore')
 
-BASE_URL = 'http://sdgym.s3.amazonaws.com/datasets/' 
 DATA_PATH = "thesisgan/input/"
 
 
@@ -22,9 +20,6 @@ def _load_json(path):
 
 def _load_file(filename, loader):
     local_path = os.path.join(DATA_PATH, filename)
-    if not os.path.exists(local_path):
-        os.makedirs(DATA_PATH, exist_ok=True)
-        urllib.request.urlretrieve(BASE_URL + filename, local_path)
 
     return loader(local_path)
 
@@ -91,14 +86,3 @@ def get_metadata(data, categorical_columns=tuple(), ordinal_columns=tuple()):
                 })
 
         return meta
-
-# if __name__ == "__main__":
-    # import numpy as np
-    # train, test, meta, categorical_columns, ordinal_columns = load_dataset("shoppers", benchmark=True)
-    # for i in (categorical_columns + ordinal_columns)[1:-3]:
-        # train[:,i] = train[:,i] - 1
-        # test[:,i] = test[:,i] - 1
-        # print(np.unique(train[:,i]))
-    # np.savez("util/data/shoppers.npz", train = train, test = test)
-
-    

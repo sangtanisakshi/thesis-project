@@ -570,8 +570,8 @@ class CTABGANSynthesizer:
                        "Info Loss": loss_info,
                        "Penalty": pen,
                        "Epoch": epoch,
-                       "Total Loss": g+d_real+d_fake+cross_entropy+loss_cc+loss_cg+loss_info+pen})
-        gan_loss = g+d_real+d_fake+cross_entropy+loss_cc+loss_cg+loss_info+pen
+                       "Total Loss": g+d_real+d_fake+loss_cc+loss_cg+loss_info+pen})
+        gan_loss = g+d_real+d_fake+loss_cc+loss_cg+loss_info+pen
         return gan_loss        
     
     def sample(self, n):

@@ -10,6 +10,8 @@ os.environ["WANDB_OFFLINE"] = "true"
 import pickle
 import torch
 import time
+import logging
+logger = logging.getLogger(__name__)
 import numpy as np
 import pandas as pd
 import plotly.io as pio
@@ -32,15 +34,15 @@ from sklearn.preprocessing import LabelEncoder
 
 def parse_args():
     parser = argparse.ArgumentParser('ITGAN')
-    parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_OPTUNA")
+    parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_2")
     parser.add_argument('-desc', '--wb_desc', type=str, help= 'Run description', default="Itgan HPO Optuna Run")
     parser.add_argument('--data', type=str, default = 'malware_hpo')
     parser.add_argument('--op_path', type=str, default = 'thesisgan/output/')
-    parser.add_argument('--seed', type=int, default = 23)
+    parser.add_argument('--seed', type=int, default = 42)
     parser.add_argument('--hpo', default = True)
     parser.add_argument('--save', default = True)
     parser.add_argument('--epochs',type =int, default = 1)  
-    parser.add_argument('--n_trials', type=int, default = 2)
+    parser.add_argument('--n_trials', type=int, default = 8)
     parser.add_argument('--num_samples', type=int, default = None)
     parser.add_argument('--emb_dim', type=int, default = 128) # dim(h)
     parser.add_argument('--en_dim', type=str, default = "256,128") # n_e(r) = 2 -> "256,128", 3 -> "512,256,128" 
@@ -93,7 +95,11 @@ def wrapper(arg, G_args):
         config.update(hpo_params)
         G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
         config.update(arg)
-        wandb.init(project="masterthesis", config=config, mode="offline", group="ITGAN_HPO_1", notes=config['description'])
+        logging.info("Config: ", config)
+        logging.info("Started trial new ")
+        wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
+                            group="itgan_hpo_debug", notes=config['description'])
+        logging.info("wandb initialized")
         config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
         synthesizer = AEGANSynthesizer(config)
         train_df, test_df, meta, categoricals, ordinals = load_dataset(config["data_name"], benchmark=True)
@@ -105,7 +111,8 @@ def wrapper(arg, G_args):
         op_path = (config['save_loc'] + config['wandb_run'] + "/" + trial + "/")
         test_data, sampled_data = sample(synthesizer, test_df, config, op_path)
         eval(train_df, test_data, sampled_data, op_path, trial)
-        wandb.finish()
+        wb_run.finish()
+        logging.debug("Finished trial")
         return gan_loss
     
     return hpo
@@ -224,8 +231,8 @@ def eval(train_data, test_data: pd.DataFrame, sample_data: pd.DataFrame, op_path
     
     
     #Model Classification
-    model_dict =  {"Classification":["lr","dt","rf","mlp"]}
-    result_df, cr = get_utility_metrics(test_data,sample_data,"MinMax", model_dict, test_ratio = 0.30)
+    model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
+    result_df, cr = get_utility_metrics(train_data, test_data, sample_data,"MinMax", model_dict)
 
     stat_res_avg = []
     stat_res = stat_sim(test_data, sample_data, cat_cols)
@@ -234,13 +241,14 @@ def eval(train_data, test_data: pd.DataFrame, sample_data: pd.DataFrame, op_path
     stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
     stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
     
-    result_df["trial"] = trial
-    cr["trial"] = trial
-    stat_results["trial"] = trial
+    result_df["run"] = wandb.run.id
+    cr["run"] = wandb.run.id
+    stat_results["run"] = wandb.run.id
     
     wandb.log({'Stat Results' : wandb.Table(dataframe=stat_results), 
                'Classification Results': wandb.Table(dataframe=result_df),
                'Classification Report': wandb.Table(dataframe=cr)})
+    
     print("Evaluation complete. Check the output folder for the plots and evaluation results.")
 
 
@@ -365,6 +373,8 @@ if __name__ == "__main__":
         arg["save_arg"] = arg.copy() 
         
     if arg_of_parser.hpo:
+        logging.basicConfig(filename='it/debug_log.log', level=logging.DEBUG)
+        logging.debug("HPO started")
         study = optuna.create_study(direction="minimize", sampler=TPESampler(seed=123))
         study.optimize(wrapper(arg, G_args), n_trials=arg_of_parser.n_trials)
         print("HPO complete. Check the output folder")

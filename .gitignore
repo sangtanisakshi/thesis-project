@@ -2,8 +2,9 @@
 .vscode/settings.json
 data/
 .cache/
-ct/
-ctab/
+ct/*
+ctab/*
+it/*
 thesisgan/model-outputs/
 thesisgan/input/
 ctgan/.github
@@ -47,8 +48,7 @@ ctgan_2_batch.job
 ctabgan_2_batch.job
 .vscode/
 research/evaluate_hpo.ipynb
-it/logs/*
 batch_itgan_1.job
 research/hpo/*
 research/evaluate_ctabgan_hpo.ipynb
-it/debug_log.log
+it/debug_new_log.log

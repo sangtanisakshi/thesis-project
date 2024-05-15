@@ -53,3 +53,11 @@ research/hpo/*
 research/evaluate_ctabgan_hpo.ipynb
 it/debug_log.log
 research/best_models/*
+research/bm_datasets/hpo_data/hpo_data.csv
+research/bm_datasets/hpo_data/metadata.json
+research/bm_datasets/test_data/metadata.json
+research/bm_datasets/test_data/test_data.csv
+research/bm_datasets/train_data/metadata.json
+research/bm_datasets/train_data/train_data.csv
+research/debug_data.csv
+local_hpo.log

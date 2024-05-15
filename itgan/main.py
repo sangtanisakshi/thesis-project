@@ -7,6 +7,7 @@ import os
 import glob
 import wandb
 os.environ["WANDB_OFFLINE"] = "true"
+os.environ["WANDB_ERROR_REPORTING"] = "false"
 import pickle
 import torch
 import time
@@ -31,17 +32,16 @@ from synthesizers.AEModel import Encoder, Decoder, loss_function
 from synthesizers.GeneratorModel import Generator, argument
 from synthesizers.DiscriminatorModel import Discriminator
 from sklearn.preprocessing import LabelEncoder
-
 def parse_args():
     parser = argparse.ArgumentParser('ITGAN')
-    parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_2")
+    parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_LOCAL")
     parser.add_argument('-desc', '--wb_desc', type=str, help= 'Run description', default="Itgan HPO Optuna Run")
-    parser.add_argument('--data', type=str, default = 'malware_hpo')
+    parser.add_argument('--data', type=str, default = 'itgan_debug')
     parser.add_argument('--op_path', type=str, default = 'thesisgan/output/')
     parser.add_argument('--seed', type=int, default = 42)
     parser.add_argument('--hpo', default = True)
     parser.add_argument('--save', default = True)
-    parser.add_argument('--epochs',type =int, default = 1)  
+    parser.add_argument('--epochs',type =int, default = 10)  
     parser.add_argument('--n_trials', type=int, default = 8)
     parser.add_argument('--num_samples', type=int, default = None)
     parser.add_argument('--emb_dim', type=int, default = 128) # dim(h)
@@ -306,7 +306,7 @@ if __name__ == "__main__":
     arg = {
             "rtol":1e-3,
             "atol":1e-3,
-            "batch_size":2000,
+            "batch_size":75,
             "random_num":23,
             "GPU_NUM":0,
             "G_model":Generator,
@@ -373,10 +373,10 @@ if __name__ == "__main__":
         arg["save_arg"] = arg.copy() 
         
     if arg_of_parser.hpo:
-        logging.basicConfig(filename='it/debug_log.log', level=logging.DEBUG)
+        logging.basicConfig(filename='local_hpo.log', level=logging.DEBUG)
         logging.debug("HPO started")
         study = optuna.create_study(direction="minimize", sampler=TPESampler(seed=123))
-        study.optimize(wrapper(arg, G_args), n_trials=arg_of_parser.n_trials)
+        study.optimize(wrapper(arg, G_args), n_trials=arg_of_parser.n_trials, gc_after_trial=True)
         print("HPO complete. Check the output folder")
         joblib.dump(study,(f"thesisgan/hpo_results/itgan_hpo_study_{arg_of_parser.wandb_run}.pkl"))
         study_data = pd.DataFrame(study.trials_dataframe())

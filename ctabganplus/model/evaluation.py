@@ -52,17 +52,24 @@ def supervised_model_training(x_train, y_train, x_test,
     if len(np.unique(y_train))>2:
       predict = model.predict_proba(x_test)        
       acc = metrics.balanced_accuracy_score(y_test,pred)*100
+      standard_error_acc = np.sqrt((acc*(100-acc))/len(y_test))
       auc = metrics.roc_auc_score(y_test, predict,average="macro",multi_class="ovo")
+      standard_error_auc = np.sqrt((auc*(1-auc))/len(y_test))
       f1_score = metrics.precision_recall_fscore_support(y_test, pred,average="macro")[2]
+      standard_error_f1 = np.sqrt((f1_score*(1-f1_score))/len(y_test))
       classification_report = metrics.classification_report(y_test,pred, target_names=['benign', 'bruteForce', 'dos', 'pingScan', 'portScan'])
-      return [acc, auc, f1_score], classification_report
+      return [acc, auc, f1_score, standard_error_acc, standard_error_auc, standard_error_f1], classification_report
 
     else:
       predict = model.predict_proba(x_test)[:,1]    
       acc = metrics.accuracy_score(y_test,pred)*100
+      standard_error_acc = np.sqrt((acc*(100-acc))/len(y_test))
       auc = metrics.roc_auc_score(y_test, predict)
+      standard_error_auc = np.sqrt((auc*(1-auc))/len(y_test))
       f1_score = metrics.precision_recall_fscore_support(y_test,pred)[2].mean()
-      return [acc, auc, f1_score] 
+      standard_error_f1 = np.sqrt((f1_score*(1-f1_score))/len(y_test))
+      classification_report = metrics.classification_report(y_test,pred, target_names=['normal', 'attack'])
+      return [acc, auc, f1_score], classification_report, [standard_error_acc, standard_error_auc, standard_error_f1]
   
   else:
     mse = metrics.mean_absolute_percentage_error(y_test,pred)
@@ -96,7 +103,6 @@ def cr_processing(a, cr_df, model):
   #remove first row of a
   a = a[1:]
   a["Model"] = model
-
   #concat a with b
   cr_df = pd.concat([cr_df,a])
   cr_df.reset_index(drop=True, inplace=True)
@@ -143,9 +149,7 @@ def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Cl
       print("Model: ", model,"trained on real data")
       all_real_results.append(real_results)
       real_cr = cr_processing(real_classification_report, real_cr, model)
-      
-    all_fake_results_avg = []
-    
+        
     data_fake  = fake_paths.to_numpy()
     data_fake_y = data_fake[:,-1]
     data_fake_X = data_fake[:,:data_dim-1]
@@ -161,18 +165,16 @@ def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Cl
     scaler_fake.fit(data_fake_X)
     
     X_train_fake_scaled = scaler_fake.transform(X_train_fake)
-    
+    all_fake_errors = []
     all_fake_results = []
     fake_cr = pd.DataFrame()
     for model in models:
-      fake_results, fake_classification_report = supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
+      fake_results, fake_classification_report= supervised_model_training(X_train_fake_scaled,y_train_fake,X_test_real_scaled,y_test_real,model,problem)
       print("Model: ", model, "trained on fake data")
       all_fake_results.append(fake_results)
       fake_cr = cr_processing(fake_classification_report, fake_cr, model)
     
-    all_fake_results_avg.append(all_fake_results)
-    
-    diff_results = np.array(all_real_results)- np.array(all_fake_results_avg).mean(axis=0)
+    diff_results = np.array(all_real_results)- np.array(all_fake_results)
 
     real_cr["precision"] = (real_cr["precision"]).astype("float64")
     real_cr["recall"] = real_cr["recall"].astype("float64")
@@ -198,19 +200,19 @@ def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Cl
     cr = pd.concat([real_cr,fake_cr,diff_cr])
     
       # get real, fake and diff results and put the acc, auc and f1 scores in a dataframe
-    diff_df = pd.DataFrame(diff_results,columns=["Acc","AUC","F1_Score"])
+    diff_df = pd.DataFrame(diff_results,columns=["Acc","AUC","F1_Score","SE_Acc","SE_AUC","SE_F1"])
     diff_df.index = list(models)
     diff_df.index.name = "Model"
     diff_df["Model"] = diff_df.index
     diff_df["Type"] = "Difference"
 
-    real_df = pd.DataFrame(all_real_results,columns=["Acc","AUC","F1_Score"])
+    real_df = pd.DataFrame(all_real_results,columns=["Acc","AUC","F1_Score","SE_Acc","SE_AUC","SE_F1"])
     real_df.index = list(models)
     real_df.index.name = "Model"
     real_df["Model"] = real_df.index
     real_df["Type"] = "Real"
 
-    fake_df = pd.DataFrame(all_fake_results,columns=["Acc","AUC","F1_Score"])
+    fake_df = pd.DataFrame(all_fake_results,columns=["Acc","AUC","F1_Score","SE_Acc","SE_AUC","SE_F1"])
     fake_df.index = list(models)
     fake_df.index.name = "Model"
     fake_df["Model"] = fake_df.index

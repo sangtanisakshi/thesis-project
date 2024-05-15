@@ -51,4 +51,6 @@ research/evaluate_hpo.ipynb
 batch_itgan_1.job
 research/hpo/*
 research/evaluate_ctabgan_hpo.ipynb
+it/debug_log.log
+research/best_models/*
 it/debug_new_log.log

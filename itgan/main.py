@@ -32,6 +32,11 @@ from synthesizers.AEModel import Encoder, Decoder, loss_function
 from synthesizers.GeneratorModel import Generator, argument
 from synthesizers.DiscriminatorModel import Discriminator
 from sklearn.preprocessing import LabelEncoder
+import requests
+
+session = requests.Session()
+session.trust_env = False
+
 def parse_args():
     parser = argparse.ArgumentParser('ITGAN')
     parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_LOCAL")
@@ -88,7 +93,7 @@ def get_hpo_parameters(trial):
     print("Hyperparameters for current trial: ",hpo_params)
     return hpo_params
 
-def wrapper(arg, G_args):
+def wrapper(arg, G_args, train_df, test_df, meta, categoricals, ordinals):
     def hpo(trial):
         hpo_params = get_hpo_parameters(trial)
         config = {}
@@ -102,8 +107,7 @@ def wrapper(arg, G_args):
         logging.info("wandb initialized")
         config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
         synthesizer = AEGANSynthesizer(config)
-        train_df, test_df, meta, categoricals, ordinals = load_dataset(config["data_name"], benchmark=True)
-        print("Data Loaded")
+        logging.info("Synthesizer created")
         gan_loss = synthesizer.fit(train_df, test_df, meta, config["data_name"], categoricals, ordinals)
         wandb.log({"WGAN-GP_experiment": gan_loss})
         # get the current sweep id and create an output folder for the sweep
@@ -373,10 +377,12 @@ if __name__ == "__main__":
         arg["save_arg"] = arg.copy() 
         
     if arg_of_parser.hpo:
-        logging.basicConfig(filename='local_hpo.log', level=logging.DEBUG)
+        train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
+        print("Data Loaded")
+        logging.basicConfig(filename='it/test_gc_log.log', level=logging.DEBUG)
         logging.debug("HPO started")
         study = optuna.create_study(direction="minimize", sampler=TPESampler(seed=123))
-        study.optimize(wrapper(arg, G_args), n_trials=arg_of_parser.n_trials, gc_after_trial=True)
+        study.optimize(wrapper(arg, G_args, train_df, test_df, meta, categoricals, ordinals), n_trials=arg_of_parser.n_trials, gc_after_trial=True)
         print("HPO complete. Check the output folder")
         joblib.dump(study,(f"thesisgan/hpo_results/itgan_hpo_study_{arg_of_parser.wandb_run}.pkl"))
         study_data = pd.DataFrame(study.trials_dataframe())

@@ -66,7 +66,6 @@ if __name__ == "__main__":
     argparser.add_argument("--train_path", type=str, default="thesisgan/input/new_hpo_data.csv")
     argparser.add_argument("--test_path", type=str, default="thesisgan/input/new_test_data.csv")
     argparser.add_argument("--output_path", type=str, default="thesisgan/input/")
-    argparser.add_argument("-sr", "--split_ratio", type=float, default=0.70)
     argparser.add_argument("--seed", type=int, default=42)
     args = argparser.parse_args()
     np.random.seed(args.seed)

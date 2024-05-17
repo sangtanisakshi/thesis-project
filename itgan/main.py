@@ -7,6 +7,7 @@ import os
 import glob
 import wandb
 os.environ["WANDB_OFFLINE"] = "true"
+os.environ["WANDB_ERROR_REPORTING"] = "false"
 import pickle
 import torch
 import time
@@ -38,9 +39,9 @@ session.trust_env = False
 
 def parse_args():
     parser = argparse.ArgumentParser('ITGAN')
-    parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_2")
+    parser.add_argument('--wandb_run', type=str, help= 'Run name', default="ITGAN_HPO_LOCAL")
     parser.add_argument('-desc', '--wb_desc', type=str, help= 'Run description', default="Itgan HPO Optuna Run")
-    parser.add_argument('--data', type=str, default = 'malware_hpo')
+    parser.add_argument('--data', type=str, default = 'itgan_debug')
     parser.add_argument('--op_path', type=str, default = 'thesisgan/output/')
     parser.add_argument('--seed', type=int, default = 42)
     parser.add_argument('--hpo', default = False)
@@ -309,7 +310,7 @@ if __name__ == "__main__":
     arg = {
             "rtol":1e-3,
             "atol":1e-3,
-            "batch_size":2000,
+            "batch_size":75,
             "random_num":23,
             "GPU_NUM":0,
             "G_model":Generator,

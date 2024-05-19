@@ -263,20 +263,20 @@ class AEGANSynthesizer(BaseSynthesizer):
             # self.writer.add_scalar("likelihood_loss", likelihood_loss, i)
             # self.writer.add_scalar("likelihood_reg_loss", likelihood_reg_loss, i)
             # self.writer.add_scalar("epoch", i)
-            # wandb.log({"AE_loss": loss_ae, "iter_s.ae_iter": iter_s.ae_iter, 
-            #            "AE_G1_loss": loss_ae_g1, "AE_G2_loss": loss_ae_g2,  "iter_s.ae_g_iter": iter_s.ae_g_iter,
-            #            "D1_loss": loss_d, "iter_s.D_iter": iter_s.D_iter,
-            #            "G1_loss": loss_g, "iter_s.G_iter": iter_s.G_iter, 
-            #            "likelihood_loss": likelihood_loss, "iter_s.G_like_iter": iter_s.G_like_iter,
-            #            "likelihood_reg_loss": likelihood_reg_loss, "iter_s.G_liker_iter": iter_s.G_liker_iter, "epoch": i}) 
-            # print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
-            # print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
-            # print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
-            # print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
-            # print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
-            # print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
-            # print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
-            # print("Time taken for epoch = ", time.time()-train_start)
+            wandb.log({"AE_loss": loss_ae, "iter_s.ae_iter": iter_s.ae_iter, 
+                        "AE_G1_loss": loss_ae_g1, "AE_G2_loss": loss_ae_g2,  "iter_s.ae_g_iter": iter_s.ae_g_iter,
+                        "D1_loss": loss_d, "iter_s.D_iter": iter_s.D_iter,
+                        "G1_loss": loss_g, "iter_s.G_iter": iter_s.G_iter, 
+                        "likelihood_loss": likelihood_loss, "iter_s.G_like_iter": iter_s.G_like_iter,
+                        "likelihood_reg_loss": likelihood_reg_loss, "iter_s.G_liker_iter": iter_s.G_liker_iter, "epoch": i}) 
+            print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
+            print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
+            print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
+            print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
+            print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
+            print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
+            print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
+            print("Time taken for epoch = ", time.time()-train_start)
         
         print("Training time: ", time.time() - train_start)
         wandb.log({"Training time":(time.time() - train_start)})

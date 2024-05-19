@@ -44,12 +44,12 @@ def parse_args():
     parser.add_argument('--data', type=str, default = 'itgan_debug')
     parser.add_argument('--op_path', type=str, default = 'thesisgan/output/')
     parser.add_argument('--seed', type=int, default = 42)
-    parser.add_argument('--hpo', default = True)
+    parser.add_argument('--hpo', default = False)
     parser.add_argument('--save', default = True)
-    parser.add_argument('--epochs',type =int, default = 10)  
+    parser.add_argument('--epochs',type =int, default = 50)  
     parser.add_argument('--n_trials', type=int, default = 8)
     parser.add_argument('--num_samples', type=int, default = None)
-    parser.add_argument('--emb_dim', type=int, default = 128) # dim(h)
+    parser.add_argument('--emb_dim', type=int, default = "128") # dim(h)
     parser.add_argument('--en_dim', type=str, default = "256,128") # n_e(r) = 2 -> "256,128", 3 -> "512,256,128" 
     parser.add_argument('--d_dim', type=str, default = "256,256") # n_d = 2 -> "256,256", 3 -> "256,256,256" 
     parser.add_argument('--d_dropout', type=float, default= 0.5) # a
@@ -134,7 +134,7 @@ def sample(model, test_data, args, op_path):
         sampled = model.sample(
             num_samples)
         sample_end = time.time() - sample_start
-        print(f"Sampling time: {sample_end} seconds")
+        print("Sampling time:", sample_end ,"seconds")
         wandb.log({"sampling_time": sample_end})
         
         df_columns = ['duration', 'proto', 'src_pt', 'dst_pt', 'packets',
@@ -150,7 +150,7 @@ def sample(model, test_data, args, op_path):
         print("Test_data", test_data.info())
         return test_data, syn_data
     
-def eval(train_data, test_data: pd.DataFrame, sample_data: pd.DataFrame, op_path, trial):
+def eval(train_data, test_data, sample_data, op_path, trial):
     eval_metadata = {
         "columns" : 
         {
@@ -180,7 +180,7 @@ def eval(train_data, test_data: pd.DataFrame, sample_data: pd.DataFrame, op_path
     #remove columns with only one unique value
     for col in test_data.columns:
         if len(test_data[col].unique()) == 1:
-            print(f"Removing column {col} as it has only one unique value")
+            print("Removing column, ", col, " as it has only one unique value")
             test_data.drop(columns=[col], inplace=True)
             sample_data.drop(columns=[col], inplace=True)
 
@@ -347,34 +347,34 @@ if __name__ == "__main__":
             
         }
     
-    if arg_of_parser.hpo:
-        arg["data_name"] = "malware_hpo"
+    # if arg_of_parser.hpo:
+    #     arg["data_name"] = "malware_hpo"
     
-    else:
-        compress_dims = tuple([int(i) for i in arg_of_parser.en_dim.split(",")])
-        decompress_dims = compress_dims[::-1]
-        dis_dim = tuple([int(i) for i in arg_of_parser.d_dim.split(",")])
+    # else:
+    #     compress_dims = tuple([int(i) for i in arg_of_parser.en_dim.split(",")])
+    #     decompress_dims = compress_dims[::-1]
+    #     dis_dim = tuple([int(i) for i in arg_of_parser.d_dim.split(",")])
     
-        arg.update = {
-            "data_name": "malware",
-            "embedding_dim": arg_of_parser.emb_dim,
-            "dis_dim": dis_dim,
-            "G_learning_term" : arg_of_parser.gt,
-            "likelihood_coef":arg_of_parser.likelihood_coef,
-            "likelihood_learn_term":arg_of_parser.lt,
-            'D_learning_term' : arg_of_parser.dt,
-            'D_leaky' : arg_of_parser.d_leaky,
-            'D_dropout': arg_of_parser.d_dropout,
-            "compress_dims":compress_dims,
-            "decompress_dims":decompress_dims
-            }
+    #     arg.update({
+    #         "data_name": "malware",
+    #         "embedding_dim": arg_of_parser.emb_dim,
+    #         "dis_dim": dis_dim,
+    #         "G_learning_term" : arg_of_parser.gt,
+    #         "likelihood_coef":arg_of_parser.likelihood_coef,
+    #         "likelihood_learn_term":arg_of_parser.lt,
+    #         'D_learning_term' : arg_of_parser.dt,
+    #         'D_leaky' : arg_of_parser.d_leaky,
+    #         'D_dropout': arg_of_parser.d_dropout,
+    #         "compress_dims":compress_dims,
+    #         "decompress_dims":decompress_dims
+    #         })
         
-        # Generator CNF info
-        G_args.update = {
-            'hdim_factor' : arg_of_parser.hdim_factor}
+    #     # Generator CNF info
+    #     G_args.update({
+    #         'hdim_factor' : arg_of_parser.hdim_factor})
         
-        arg["G_args"] = argument(G_args, arg["embedding_dim"])
-        arg["save_arg"] = arg.copy() 
+    #     arg["G_args"] = argument(G_args, arg["embedding_dim"])
+    #     arg["save_arg"] = arg.copy() 
         
     if arg_of_parser.hpo:
         train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
@@ -394,3 +394,42 @@ if __name__ == "__main__":
     
         #get best trial hyperparameters and train the model with that
         best_params = SimpleNamespace(**study.best_params)
+    else:
+        hpo_params = {
+            'compress_dims': (512, 256, 128), 
+            'decompress_dims': (128, 256, 512), 
+            'embedding_dim': 128, 
+            'dis_dim': (256, 256, 256), 
+            'D_dropout': 0.5, 
+            'D_leaky': 0.2, 
+            'hdim_factor': 1.5, 
+            'likelihood_coef': -0.1, 
+            'G_learning_term': 5, 
+            'D_learning_term': 6, 
+            'likelihood_learn_term': 1
+        }
+        arg.update({"data_name": "malware_hpo"})
+        config = {}
+        config.update(hpo_params)
+        train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
+        print("Data Loaded")
+        logging.basicConfig(filename='it/manual_hpo.log', level=logging.DEBUG)
+        logging.debug("HPO started manually")
+        G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
+        config.update(arg)
+        logging.info("Config: ", config)
+        logging.info("Started trial new ")
+        wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
+                            group="itgan_manual_hpo", notes=config['description'])
+        logging.info("wandb initialized")
+        config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
+        synthesizer = AEGANSynthesizer(config)
+        logging.info("Synthesizer created")
+        gan_loss = synthesizer.fit(train_df, test_df, meta, config["data_name"], categoricals, ordinals)
+        wandb.log({"WGAN-GP_experiment": gan_loss, "trial": "1"})
+        # get the current sweep id and create an output folder for the sweep
+        op_path = (config['save_loc'] + config['wandb_run'] + "/1_manual/" + "/")
+        test_data, sampled_data = sample(synthesizer, test_df, config, op_path)
+        eval(train_df, test_data, sampled_data, op_path, "1")
+        wb_run.finish()
+        logging.debug("Finished trial")

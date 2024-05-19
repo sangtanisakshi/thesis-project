@@ -5,7 +5,7 @@ from .layers.cnf import CNF
 from .layers.odefunc import ODEfunc, ODEnet
 from .layers.normalization import MovingBatchNorm1d
 from .layers.container import SequentialFlow
-
+from torchinfo import summary
 def standard_normal_logprob(z):
     logZ = -0.5 * math.log(2 * math.pi)
     return logZ - z.pow(2) / 2
@@ -115,7 +115,7 @@ def build_model_tabular(args, dims, regularization_fns=None):
             bn_chain.append(b)
         chain = bn_chain
     model = SequentialFlow(chain)
-
+    print("SequentialFlow model summary:")
     set_cnf_options(args, model)
-
+    print(summary(model))
     return model

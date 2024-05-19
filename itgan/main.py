@@ -310,7 +310,7 @@ if __name__ == "__main__":
     arg = {
             "rtol":1e-3,
             "atol":1e-3,
-            "batch_size":75,
+            "batch_size":4096,
             "random_num":23,
             "GPU_NUM":0,
             "G_model":Generator,
@@ -413,14 +413,14 @@ if __name__ == "__main__":
         config.update(hpo_params)
         train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
         print("Data Loaded")
-        logging.basicConfig(filename='it/manual_hpo.log', level=logging.DEBUG)
+        logging.basicConfig(filename='it/manual_1_20ep_2.log', level=logging.DEBUG)
         logging.debug("HPO started manually")
         G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
         config.update(arg)
         logging.info("Config: ", config)
         logging.info("Started trial new ")
         wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
-                            group="itgan_manual_hpo", notes=config['description'])
+                            group="itgan_manual_hpo_20ep", notes=config['description'])
         logging.info("wandb initialized")
         config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
         synthesizer = AEGANSynthesizer(config)
@@ -428,7 +428,7 @@ if __name__ == "__main__":
         gan_loss = synthesizer.fit(train_df, test_df, meta, config["data_name"], categoricals, ordinals)
         wandb.log({"WGAN-GP_experiment": gan_loss, "trial": "1"})
         # get the current sweep id and create an output folder for the sweep
-        op_path = (config['save_loc'] + config['wandb_run'] + "/1_manual/" + "/")
+        op_path = (config['save_loc'] + config['wandb_run'] + "/1_20ep/" + "/")
         test_data, sampled_data = sample(synthesizer, test_df, config, op_path)
         eval(train_df, test_data, sampled_data, op_path, "1")
         wb_run.finish()

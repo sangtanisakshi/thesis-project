@@ -9,11 +9,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import torch.utils.data
 from torch.nn import functional as F
-
+from torchinfo import summary
 from util.data import load_dataset
 from util.base import BaseSynthesizer
 from util.transformer import BGMTransformer
 from util.model_test import fix_random_seed
+from datetime import datetime
 import logging
 class iter_schedular:
     def __init__(self):
@@ -103,8 +104,8 @@ class AEGANSynthesizer(BaseSynthesizer):
         self.test = test_data
         self.meta = meta_data
         
-        dataset = TensorDataset(torch.from_numpy(train_data.astype('float32')).to(self.device))
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=True)
+        dataset = TensorDataset(torch.from_numpy(train_data.astype('float32')))
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=48)
         data_dim = self.transformer.output_dim
         logging.info("Data loading finished")
 
@@ -124,14 +125,19 @@ class AEGANSynthesizer(BaseSynthesizer):
         iter = 0
         iter_s = iter_schedular()
         track_score_dict, save_score_dict = {}, {}
-        
+        logging.info(f"Encoder: {summary(encoder)}")
+        logging.info(f"Decoder: {summary(self.decoder)}")
+        logging.info(f"Generator: {summary(self.generator)}")
+        logging.info(f"Discriminator: {summary(self.discriminator)}")
         mean_z = torch.zeros(self.batch_size, self.embedding_dim, device=self.device)
         std_z = mean_z + 1
         train_start = time.time()
         logging.info("Training Now")
         print("epochs = ", self.epochs) 
         for i in range(self.epochs):
+            epoch_start = time.time()
             print("Current epoch = ", i)
+            logging.info(f"Current epoch = {i}, starting at {epoch_start} , {datetime.now().strftime('%H:%M:%S.%f')}")
             for _, data in enumerate(loader): 
                 iter += 1
 
@@ -140,6 +146,7 @@ class AEGANSynthesizer(BaseSynthesizer):
 
                 ######## AutoEncoder Learning AE loss #########
                 if term_check(self.ae_learning_term, iter):
+                    #logging.info(f"Training AE loss at iter {iter_s.ae_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     emb = encoder(real) 
                     rec, sigmas = self.decoder(emb)
                     loss_1, loss_2 = self.L_func( 
@@ -153,35 +160,48 @@ class AEGANSynthesizer(BaseSynthesizer):
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
                     ##self.writer.add_scalar('losses/AE_loss', loss_ae, iter_s.ae_iter)
                     iter_s.ae_iter += 1
+                    #logging.info(f"Finished training AE loss at iter {iter_s.ae_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     #print("AE_loss = ", loss_ae, "iter = ", iter_s.ae_iter)
                 ######## AutoEncoder Learning Gan loss #########
                 if term_check(self.ae_learning_term_g, iter):
+                    logging.info(f"Training AE_G1 and AE_G2 loss at iter {iter_s.ae_g_iter} at time {datetime.now().strftime('%H:%M:%S.%f')}")
                     fakez = torch.normal(mean=mean_z, std=std_z)
+                    logging.info(f"Fakez generated {datetime.now().strftime('%H:%M:%S.%f')}")
                     fake_h = self.generator(fakez)
-                    rec_syn, _ = self.decoder(fake_h) 
+                    logging.info(f"Fake_h generated {datetime.now().strftime('%H:%M:%S.%f')}")
+                    rec_syn, _ = self.decoder(fake_h)
+                    logging.info(f"rec_syn generated {datetime.now().strftime('%H:%M:%S.%f')}")
                     emb_syn = encoder(rec_syn) 
+                    logging.info(f"emb_syn generated {datetime.now().strftime('%H:%M:%S.%f')}")
                     loss_ae_g1 = ((emb_syn - fake_h) ** 2).mean()
+                    logging.info(f"loss_ae_g1 generated {datetime.now().strftime('%H:%M:%S.%f')}")
                     optimizerEn.zero_grad()
+                    logging.info(f"optimizerEn zero_grad {datetime.now().strftime('%H:%M:%S.%f')}")
                     optimizerDe.zero_grad()
+                    logging.info(f"optimizerDe zero_grad {datetime.now().strftime('%H:%M:%S.%f')}")
                     loss_ae_g1.backward()
+                    logging.info(f"loss_ae_g1 backward {datetime.now().strftime('%H:%M:%S.%f')}")
                     optimizerEn.step()
+                    logging.info(f"optimizerEn step {datetime.now().strftime('%H:%M:%S.%f')}")
                     optimizerDe.step()
+                    logging.info(f"optimizerDe step {datetime.now().strftime('%H:%M:%S.%f')}")
                     self.decoder.sigma.data.clamp_(0.01, 1.0)
-                    #logging.info("losses/AE_G1_loss", loss_ae_g1, iter_s.ae_g_iter)
-                    ##self.writer.add_scalar('losses/AE_G1_loss', loss_ae_g1, iter_s.ae_g_iter)
-                    #print("AE_G1_loss = ", loss_ae_g1, "iter = ", iter_s.ae_g_iter)
-                    real_h = encoder(real) 
-                    loss_ae_g2 = 0
-                    if self.D_learning_term != 0:
-                        loss_ae_g2 += -torch.mean(self.discriminator(real_h))
+                    logging.info(f"clamped sigma {datetime.now().strftime('%H:%M:%S.%f')}")
+                    real_h = encoder(real)
+                    logging.info(f"real_h generated {datetime.now().strftime('%H:%M:%S.%f')}") 
+                    loss_ae_g2 = -torch.mean(self.discriminator(real_h))
+                    logging.info(f"loss_ae_g2 generated {datetime.now().strftime('%H:%M:%S.%f')}")
                     optimizerEn.zero_grad()
+                    logging.info(f"optimizerEn zero_grad {datetime.now().strftime('%H:%M:%S.%f')}")
                     loss_ae_g2.backward()
+                    logging.info(f"loss_ae_g2 backward {datetime.now().strftime('%H:%M:%S.%f')}")
                     optimizerEn.step()
-                    ##self.writer.add_scalar('losses/AE_G2_loss', loss_ae_g2, iter_s.ae_g_iter)
+                    logging.info(f"optimizerEn step {datetime.now().strftime('%H:%M:%S.%f')}")
                     iter_s.ae_g_iter += 1
-                    #print("AE_G2_loss = ", loss_ae_g2, "iter = ", iter_s.ae_g_iter)
+                    logging.info(f"Finished training AE_G1 and AE_G2 loss at iter {iter_s.ae_g_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                 ######## update inner discriminator #########
                 if term_check(self.D_learning_term, iter):
+                    #logging.info(f"Training D1 loss at iter {iter_s.D_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     real_h = encoder(real)       
                     fakez = torch.normal(mean=mean_z, std=std_z)
                     fake_h = self.generator(fakez)
@@ -195,9 +215,11 @@ class AEGANSynthesizer(BaseSynthesizer):
                     optimizerD.step()
                     ##self.writer.add_scalar('losses/D1_loss', loss_d, iter_s.D_iter)
                     iter_s.D_iter += 1
+                    #logging.info(f"Finished training D1 loss at iter {iter_s.D_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     #print("D1_loss = ", loss_d, "iter = ", iter_s.D_iter)
                 ######### update generator with inner discri W-GAN Loss ##########
                 if self.D_learning_term != 0 and term_check(self.G_learning_term, iter):
+                    #logging.info(f"Training G1 loss at iter {iter_s.G_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     fakez = torch.normal(mean=mean_z, std=std_z)
                     fake_h = self.generator(fakez)
                     y_fake = self.discriminator(fake_h)
@@ -211,6 +233,7 @@ class AEGANSynthesizer(BaseSynthesizer):
                     #logging.info("losses/G1_loss", loss_g, iter_s.G_iter)
                     ##self.writer.add_scalar('losses/G1_loss', loss_g, iter_s.G_iter)
                     iter_s.G_iter += 1
+                    #logging.info(f"Finished training G1 loss at iter {iter_s.G_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     #print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
                     if self.kinetic_learn_every_G_learn:
                         real_h = encoder(real) # 수정
@@ -222,9 +245,10 @@ class AEGANSynthesizer(BaseSynthesizer):
                             ##self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                             iter_s.G_liker_iter += 1
                             #print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
-
+                        #logging.info(f"Kinetic learning G1 finished at iter {iter_s.G_liker_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                 ######## update generator with Likelihood Loss ##########
                 if term_check(self.likelihood_learn_term, iter):
+                    #logging.info(f"Training likelihood loss at iter {iter_s.G_like_iter} at time {datetime.now().strftime('%H:%M:%S')}")
                     real_h = encoder(real)
                     likelihood_loss, likelihood_reg_loss = self.generator.compute_likelihood_loss(real_h)
 
@@ -253,8 +277,8 @@ class AEGANSynthesizer(BaseSynthesizer):
                         ##self.writer.add_scalar('losses/likelihood_reg_loss', likelihood_reg_loss, iter_s.G_liker_iter)
                         iter_s.G_liker_iter += 1
                        #print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)     
-            
-            logging.info("Saving losses to wandb of finished epoch")
+                    #logging.info(f"Finished training likelihood loss at iter {iter_s.G_like_iter} at time {datetime.now().strftime('%H:%M:%S')}")
+            logging.info(f"Saving losses to wandb of finished epoch {i}. Took {time.time() - epoch_start} seconds")
             # self.writer.add_scalar("AE_loss", loss_ae, i)
             # self.writer.add_scalar("AE_G1_loss", loss_ae_g1, i)
             # self.writer.add_scalar("AE_G2_loss", loss_ae_g2, i)
@@ -263,6 +287,13 @@ class AEGANSynthesizer(BaseSynthesizer):
             # self.writer.add_scalar("likelihood_loss", likelihood_loss, i)
             # self.writer.add_scalar("likelihood_reg_loss", likelihood_reg_loss, i)
             # self.writer.add_scalar("epoch", i)
+            loss_ae = loss_ae.detach().cpu().item()
+            loss_ae_g1 = loss_ae_g1.detach().cpu().item()
+            loss_ae_g2 = loss_ae_g2.detach().cpu().item()
+            loss_d = loss_d.detach().cpu().item()
+            loss_g = loss_g.detach().cpu().item()
+            likelihood_loss = likelihood_loss.detach().cpu().item()
+            likelihood_reg_loss = likelihood_reg_loss.detach().cpu().item()
             wandb.log({"AE_loss": loss_ae, "iter_s.ae_iter": iter_s.ae_iter, 
                         "AE_G1_loss": loss_ae_g1, "AE_G2_loss": loss_ae_g2,  "iter_s.ae_g_iter": iter_s.ae_g_iter,
                         "D1_loss": loss_d, "iter_s.D_iter": iter_s.D_iter,
@@ -276,7 +307,6 @@ class AEGANSynthesizer(BaseSynthesizer):
             print("G1_loss = ", loss_g, "iter = ", iter_s.G_iter)
             print("likelihood_loss = ", likelihood_loss, "iter = ", iter_s.G_like_iter)
             print("likelihood_reg_loss = ", likelihood_reg_loss, "iter = ", iter_s.G_liker_iter)
-            print("Time taken for epoch = ", time.time()-train_start)
         
         print("Training time: ", time.time() - train_start)
         wandb.log({"Training time":(time.time() - train_start)})

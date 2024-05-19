@@ -18,6 +18,7 @@ import plotly.io as pio
 from synthesizers.ctgan import CTGAN
 from sklearn.preprocessing import LabelEncoder
 from ctabganplus.model.evaluation import get_utility_metrics,stat_sim
+from sklearn.model_selection import cross_validate
 from thesisgan.model_evaluation import eval_model
 from PIL import Image
 import json
@@ -56,6 +57,7 @@ def _parse_args(discrete_columns):
     parser.add_argument('-l', '--lambda_', type=float, default=10, help='Gradient penalty lambda_ hyperparameter')
     parser.add_argument('-cuda', '--cuda', type=bool, default=True, help='Use GPU')
     parser.add_argument('--hpo', action=argparse.BooleanOptionalAction, help='Hyperparameter optimization mode')
+    parser.add_argument('--cv', action=argparse.BooleanOptionalAction, help='Cross validation mode')
     return parser.parse_args()
 
 def seed_everything(seed=42):
@@ -280,31 +282,48 @@ def main():
         sample_data = pd.read_csv("thesisgan/output/ctgan_sweep/ycoi93zy/syn.csv")
         op_path = "thesisgan/output/ctgan_sweep/ycoi93zy/"
         eval(test_data, sample_data, op_path)
-    else:
-        if args.hpo:
-            print("Training HPO model...")
-            sampler = TPESampler(seed=123)
-            study = optuna.create_study(study_name="ctgan_hpo", direction="minimize", sampler=sampler)
-            study.optimize(wrapper(train_data, rest_args), n_trials=20)
-            joblib.dump(study,("thesisgan/hpo_results/ctgan_study.pkl"))
-            study_data = pd.DataFrame(study.trials_dataframe())
-            study_data.to_csv("thesisgan/hpo_results/ctgan_study_results.csv")
-            print("Number of finished trials: {}".format(len(study.trials)))
-            print("Best trial params:")
-            for key, value in study.best_params.items():
-                print(" {}: {}".format(key, value))
-        else:
-            wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description,
-                                   group="CTGAN-MAIN", mode="offline")
-            print("Training model...")
+    elif args.hpo:
+        print("Training HPO model...")
+        sampler = TPESampler(seed=123)
+        study = optuna.create_study(study_name="ctgan_hpo", direction="minimize", sampler=sampler)
+        study.optimize(wrapper(train_data, rest_args), n_trials=20)
+        joblib.dump(study,("thesisgan/hpo_results/ctgan_study.pkl"))
+        study_data = pd.DataFrame(study.trials_dataframe())
+        study_data.to_csv("thesisgan/hpo_results/ctgan_study_results.csv")
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial params:")
+        for key, value in study.best_params.items():
+            print(" {}: {}".format(key, value))
+    elif args.cv:
+        print("Training with Cross Validation")
+        # do a 5 fold cross validation where every fold is one type of attack.
+        # we will first split the data into 5 folds based on the attack type
+        # then we will train the model on 4 folds and evaluate on the 5th fold
+        # we will repeat this process 5 times
+        attack_types = train_data["attack_type"].unique()
+        cv_results = []
+        for i in range(5):
+            print(f"Starting fold {i+1}")
+            test_data = train_data[train_data["attack_type"] == attack_types[i]]
+            train_data = train_data[train_data["attack_type"] != attack_types[i]]
             model = CTGAN(config)
             gan_loss = model.fit(train_data, discrete_columns, args.epochs)
-            wandb.log({"gan_loss": gan_loss})
-            wandb.log({"WGAN-GP_experiment": gan_loss})
-            config.update(args.__dict__)
-            op_path = (args.output + args.wandb_run  + "/")
+            op_path = (args.output + args.wandb_run + "/")
             test_data, sampled_data = sample(model, config, op_path)
             eval(train_data, test_data, sampled_data, op_path)
-            wandb.finish()
+            cv_results.append(gan_loss)
+    else:
+        wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description,
+                                group="CTGAN-MAIN", mode="offline")
+        print("Training model...")
+        model = CTGAN(config)
+        gan_loss = model.fit(train_data, discrete_columns, args.epochs)
+        wandb.log({"gan_loss": gan_loss})
+        wandb.log({"WGAN-GP_experiment": gan_loss})
+        config.update(args.__dict__)
+        op_path = (args.output + args.wandb_run  + "/")
+        test_data, sampled_data = sample(model, config, op_path)
+        eval(train_data, test_data, sampled_data, op_path)
+        wandb.finish()
 if __name__ == '__main__':
     main()

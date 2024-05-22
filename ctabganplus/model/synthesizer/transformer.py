@@ -78,8 +78,8 @@ class DataTransformer():
 
     def fit(self):
         data = self.train_data.values
-        #self.meta = self.get_metadata()
-        self.meta = self.get_metadata_json("thesisgan/input/ctabgan_malware.json")
+        self.meta = self.get_metadata()
+        #self.meta = self.get_metadata_json("thesisgan/input/ctabgan_malware.json")
         model = []
         self.ordering = []
         self.output_info = []

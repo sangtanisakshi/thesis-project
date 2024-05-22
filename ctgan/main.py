@@ -28,12 +28,12 @@ os.environ['WANDB_OFFLINE'] = 'true'
 def _parse_args(discrete_columns):
     # add argument hpo to the parser and if hpo is True, add the hpo_config to the parser
     parser = argparse.ArgumentParser(description='CTGAN Command Line Interface')
-    parser.add_argument('-name','--wandb_run', type=str, default="CTGAN_HPO", help='Wandb run name')
-    parser.add_argument('-desc','--description', type=str, default="CTGAN_HPO_OPTUNA", help='Wandb run description')
-    parser.add_argument('-op','--output', type=str, default='thesisgan/output/', help='Path of the output file')
-    parser.add_argument('-test','--test_data', type=str, default='thesisgan/input/new_test_data.csv', help='Path to test data')
+    parser.add_argument('-name','--wandb_run', type=str, default="CTGAN_CV", help='Wandb run name')
+    parser.add_argument('-desc','--description', type=str, default="CV 5 fold Using trial 12 params", help='Wandb run description')
+    parser.add_argument('-op','--output', type=str, default='thesisgan/output/ctgan_cv/', help='Path of the output file')
+    parser.add_argument('-test','--test_data', type=str, default='thesisgan/input/new_hpo_data.csv', help='Path to test data')
     parser.add_argument('-s','--seed', type=int, default=23, help='Random seed')
-    parser.add_argument('-e', '--epochs', default=150, type=int, help='Number of training epochs')
+    parser.add_argument('-e', '--epochs', default=5, type=int, help='Number of training epochs')
     parser.add_argument('-d', '--discrete_columns', default=discrete_columns, help='Comma separated list of discrete columns without whitespaces.')
     parser.add_argument('-ver','--verbose', type=bool, default=True, help='Verbose')
     parser.add_argument('--save', action=argparse.BooleanOptionalAction, help='If model should be saved')
@@ -43,7 +43,7 @@ def _parse_args(discrete_columns):
     parser.add_argument('--sample_condition_column', default=None, type=str, help='Select a discrete column name.')
     parser.add_argument('--sample_condition_column_value', default=None, type=str, help='Specify the value of the selected discrete column.')
     parser.add_argument('-dsteps','--discriminator_steps', type=int, default=1, help='Discriminator steps')
-    parser.add_argument('-ip','--data', type=str, default='thesisgan/input/new_hpo_data.csv', help='Path to training data')
+    parser.add_argument('-ip','--data', type=str, default='thesisgan/input/new_train_data.csv', help='Path to training data')
     parser.add_argument('-glr', '--generator_lr', type=float, default=2e-4, help='Learning rate for the generator.')
     parser.add_argument('-dlr', '--discriminator_lr', type=float, default=2e-4, help='Learning rate for the discriminator.')
     parser.add_argument('-gdecay', '--generator_decay', type=float, default=1e-6, help='Weight decay for the generator.')
@@ -102,28 +102,22 @@ def wrapper(train_data, rest_args):
         # get the current sweep id and create an output folder for the sweep
         trial = str(trial.number)
         op_path = (config['output'] + config['wandb_run'] + "/" + trial + "/")
-        test_data, sampled_data = sample(model, config, op_path)
+        test_data, sampled_data = sample(model, config, op_path, train_data)
         eval(train_data, test_data, sampled_data, op_path)
         wandb.finish()
         return gan_loss
     
     return hpo
 
-def sample(model, args, op_path):
+def sample(model, args, op_path, train_data, cv=False):
         
         os.makedirs(op_path, exist_ok=True)
         print("Saving?", str(args["save"]))
         if args["save"]:
             CTGAN.save(model, str(op_path+"model.pkl"))
             pickle.dump(model, open(str(op_path+"pklmodel.pkl"), "wb"))
-        
-        # Load test data
-        test_data = pd.read_csv(args["test_data"])
-        if test_data.columns[0] == "Unnamed: 0":
-            test_data = test_data.drop(columns="Unnamed: 0")
-        print("Test data loaded")
     
-        num_samples = test_data.shape[0] if args["num_samples"] is None else args["num_samples"]
+        num_samples = train_data.shape[0] if args["num_samples"] is None else args["num_samples"]
 
         if args["sample_condition_column"] is not None:
             assert args["sample_condition_column_value"] is not None
@@ -141,9 +135,9 @@ def sample(model, args, op_path):
         sampled.to_csv(str(op_path+"syn.csv"), index=False)
         print("Synthetic data saved. Check the output folder.") 
 
-        return test_data, sampled
+        return sampled
     
-def eval(train_data, test_data, sample_data, op_path):
+def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
     eval_metadata = {
     "columns" : 
     {
@@ -159,25 +153,22 @@ def eval(train_data, test_data, sample_data, op_path):
     "tcp_syn": {"sdtype": "categorical"},
     "tcp_fin": {"sdtype": "categorical"},
     "tos": {"sdtype": "categorical"},
-    "label": {"sdtype": "categorical"},
-    "attack_type": {"sdtype": "categorical"}
+    "attack_type": {"sdtype": "categorical"},
+    "label": {"sdtype": "categorical"}
     }
     }
-    #remove columns with only one unique value
-    for col in test_data.columns:
-        if len(test_data[col].unique()) == 1:
-            print(f"Removing column {col} as it has only one unique value")
-            test_data.drop(columns=[col], inplace=True)
-            sample_data.drop(columns=[col], inplace=True)
-    
+
+    print("Unique Values:" , test_data["attack_type"].unique(), test_data["label"].unique(), 
+                         sample_data["attack_type"].unique(), sample_data["label"].unique())
     le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
+    
     for c in le_dict.keys():
         le_dict[c] = LabelEncoder()
         test_data[c] = le_dict[c].fit_transform(test_data[c])
         sample_data[c] = le_dict[c].fit_transform(sample_data[c])
         train_data[c] = le_dict[c].fit_transform(train_data[c])
         
-    cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
+    cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'attack_type', 'label']
     for col in cat_cols:
         test_data[col] = test_data[col].astype(str)
         sample_data[col] = sample_data[col].astype(str)
@@ -190,37 +181,45 @@ def eval(train_data, test_data, sample_data, op_path):
     wandb.log({"Evaluation": [wandb.Image(img) for img in imgs]})
     wandb.log(scores)
     
+    print("Unique Values:" , test_data["attack_type"].unique(), test_data["label"].unique(), 
+                         sample_data["attack_type"].unique(), sample_data["label"].unique())
     for col in cat_cols:
         test_data[col] = test_data[col].astype("int64")
         sample_data[col] = sample_data[col].astype("int64")
         train_data[col] = train_data[col].astype("int64")
-        
-    #if the synthetic data has only one unique value for the attack type, add a row with the attack type
-    sample_data_value_counts = sample_data["attack_type"].value_counts()
-    for i in range(len(sample_data_value_counts)):
-        if sample_data_value_counts[i] == 1:
-            at = sample_data_value_counts.index[i]
-            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
 
-    for at in test_data["attack_type"].unique():
-        if at not in sample_data["attack_type"].unique():
-            #add a row with the attack type
-            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
+    if (binary==False or cv==False):
+        #if the synthetic data has only one unique value for the attack type, add a row with the attack type
+        sample_data_value_counts = sample_data["attack_type"].value_counts()
+        for i in range(len(sample_data_value_counts)):
+            if sample_data_value_counts[i] == 1:
+                at = sample_data_value_counts.index[i]
+                sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
+
+        for at in test_data["attack_type"].unique():
+            if at not in sample_data["attack_type"].unique():
+                #add a row with the attack type
+                sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
     
     #Model Classification
     model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
-    result_df, cr = get_utility_metrics(train_data,test_data,sample_data,"MinMax",model_dict)
+    result_df, cr = get_utility_metrics(train_data,test_data,sample_data,"MinMax",model_dict, cv=cv, binary=binary)
 
-    stat_res_avg = []
-    stat_res = stat_sim(test_data, sample_data, cat_cols)
-    stat_res_avg.append(stat_res)
+    if cv==False:
+        stat_res_avg = []
+        stat_res = stat_sim(test_data, sample_data, cat_cols)
+        stat_res_avg.append(stat_res)
 
-    stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
-    stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
+        stat_columns = ["Average WD (Continuous Columns","Average JSD (Categorical Columns)","Correlation Distance"]
+        stat_results = pd.DataFrame(np.array(stat_res_avg).mean(axis=0).reshape(1,3),columns=stat_columns)
     
-    wandb.log({'Stat Results' : wandb.Table(dataframe=stat_results), 
+        wandb.log({'Stat Results' : wandb.Table(dataframe=stat_results), 
                'Classification Results': wandb.Table(dataframe=result_df),
                'Classification Report': wandb.Table(dataframe=cr)})
+    else:
+        
+        wandb.log({'Classification Results': wandb.Table(dataframe=result_df),
+                   'Classification Report': wandb.Table(dataframe=cr)})
     print("Evaluation complete. Check the output folder for the plots and evaluation results.")
       
 
@@ -282,6 +281,7 @@ def main():
         sample_data = pd.read_csv("thesisgan/output/ctgan_sweep/ycoi93zy/syn.csv")
         op_path = "thesisgan/output/ctgan_sweep/ycoi93zy/"
         eval(test_data, sample_data, op_path)
+        
     elif args.hpo:
         print("Training HPO model...")
         sampler = TPESampler(seed=123)
@@ -294,36 +294,92 @@ def main():
         print("Best trial params:")
         for key, value in study.best_params.items():
             print(" {}: {}".format(key, value))
+        
     elif args.cv:
+        
         print("Training with Cross Validation")
-        # do a 5 fold cross validation where every fold is one type of attack.
+        # update args to set with the best hp of the model - trial 12
+        config.update({
+            "epochs":300,
+            "generator_lr": 0.00010024734990379357,
+            "discriminator_lr": 0.00029082495033222255,
+            "generator_decay": 0.0000392349472109858,
+            "discriminator_decay": 0.00001412239691533274,
+            "embedding_dim": 128,
+            "generator_dim": "256,256",
+            "discriminator_dim": "1024,1024",
+            "batch_size": 1000,
+            "log_frequency": True,
+            "lambda_": 20,
+            "seed": 23,
+            "train_data": "thesisgan/input/new_train_data.csv",
+            "test_data": "thesisgan/input/new_hpo_data.csv",
+            "output": "thesisgan/output/ctgan_cv/"})
+        
+        # First we will convert the training data label to a binary classification algorithm
+        # where normal traffic is 0 and attack traffic is 1
+        train_data["label"] = train_data["label"].apply(lambda x: 0 if x == "normal" else 1)
+        #move the label at the end of the dataframe
+        cols = list(train_data.columns)
+        cols.remove("label")
+        cols.append("label")
+        train_data = train_data[cols]
+        # do a 4 fold cross validation where every fold is one type of attack.
         # we will first split the data into 5 folds based on the attack type
         # then we will train the model on 4 folds and evaluate on the 5th fold
         # we will repeat this process 5 times
-        attack_types = train_data["attack_type"].unique()
-        cv_results = []
-        for i in range(5):
-            print(f"Starting fold {i+1}")
-            test_data = train_data[train_data["attack_type"] == attack_types[i]]
-            train_data = train_data[train_data["attack_type"] != attack_types[i]]
-            model = CTGAN(config)
-            gan_loss = model.fit(train_data, discrete_columns, args.epochs)
-            op_path = (args.output + args.wandb_run + "/")
-            test_data, sampled_data = sample(model, config, op_path)
-            eval(train_data, test_data, sampled_data, op_path)
-            cv_results.append(gan_loss)
+        config["wandb_run"] = (f"CTGAN_CV_4_bruteForce")
+        wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["description"],
+                            group="CTGAN-CV", mode="offline")
+        print(f"Starting fold 4")
+        test_df = train_data[train_data["attack_type"] == "bruteForce"]
+        train_df = train_data[train_data["attack_type"] != "bruteForce"]
+        model = CTGAN(config)
+        gan_loss = model.fit(train_df, discrete_columns, config["epochs"])
+        wandb.log({"gan_loss": gan_loss, "fold": 4, "attack_type": "bruteForce"})
+        op_path = (config["output"] + config["wandb_run"] + "/")
+        sampled_data = sample(model, config, op_path, train_df, test_df, cv=True)
+        eval(train_df, test_df, sampled_data, op_path, cv=True, binary=True)
+        wandb.finish()
     else:
-        wandb.init(project="masterthesis", name=args.wandb_run, config=args, notes=args.description,
-                                group="CTGAN-MAIN", mode="offline")
+        config.update({
+        
+        "epochs":300,
+        "generator_lr": 0.00010024734990379357,
+        "discriminator_lr": 0.00029082495033222255,
+        "generator_decay": 0.0000392349472109858,
+        "discriminator_decay": 0.00001412239691533274,
+        "embedding_dim": 128,
+        "generator_dim": "256,256",
+        "discriminator_dim": "1024,1024",
+        "batch_size": 1000,
+        "log_frequency": True,
+        "lambda_": 20,
+        "seed": 23,
+        "train_data": "thesisgan/input/new_train_data.csv",
+        "test_data": "thesisgan/input/new_hpo_data.csv",
+        "wandb_run": "CTGAN_binary_classification",
+        "output": "thesisgan/output/"})
+        # First we will convert the training data label to a binary classification algorithm
+        # where normal traffic is 0 and attack traffic is 1
+        test_data = pd.read_csv(config["test_data"])
+        binary = True
+        if binary:
+            train_data["label"] = train_data["label"].apply(lambda x: 0 if x == "normal" else 1)
+            #move the label at the end of the dataframe
+            cols = list(train_data.columns)
+            cols.remove("label")
+            cols.append("label")
+            train_data = train_data[cols]
+        wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["description"],
+                                group="CTGAN-BINARY", mode="offline")
         print("Training model...")
         model = CTGAN(config)
-        gan_loss = model.fit(train_data, discrete_columns, args.epochs)
+        gan_loss = model.fit(train_df, discrete_columns, config["epochs"])
         wandb.log({"gan_loss": gan_loss})
-        wandb.log({"WGAN-GP_experiment": gan_loss})
-        config.update(args.__dict__)
-        op_path = (args.output + args.wandb_run  + "/")
-        test_data, sampled_data = sample(model, config, op_path)
-        eval(train_data, test_data, sampled_data, op_path)
+        op_path = (config["output"] + config["wandb_run"] + "/")
+        sampled_data = sample(model, config, op_path, train_df, test_df, cv=True)
+        eval(train_df, test_df, sampled_data, op_path, cv=True, binary=True)
         wandb.finish()
 if __name__ == '__main__':
     main()

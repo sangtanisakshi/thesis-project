@@ -10,13 +10,12 @@ from sklearn.preprocessing import LabelEncoder
 from model.data_preparation import DataPrep
 
 # set seed 
-np.random.seed(42)
 
-ctabgan_best = pickle.load(open('thesisgan/output/ctabgan_best_model/pklmodel.pkl', 'rb'))
+ctabgan_best = pickle.load(open('thesisgan/output/ctabgan_best_model_2/pklmodel.pkl', 'rb'))
 train_data = pd.read_csv('thesisgan/input/new_train_data.csv')
 hpo_data = pd.read_csv("thesisgan/input/new_hpo_data.csv")
 test_data = pd.read_csv("thesisgan/input/new_test_data.csv")
-og_syn_data = pd.read_csv("thesisgan/output/ctabgan_best_model/syn.csv")
+og_syn_data = pd.read_csv("thesisgan/output/ctabgan_best_model_2/syn.csv")
 
 data_prep = DataPrep(train_data, ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type'], 
                      [], {}, [], ['packets', 'src_pt', 'dst_pt', 'duration', 'bytes'], [],
@@ -34,12 +33,14 @@ for c in le_dict.keys():
     og_syn_data[c] = le_dict[c].fit_transform(og_syn_data[c])
     og_more_samples[c] = le_dict[c].fit_transform(og_more_samples[c])
 
+np.random.seed(42)
 og_cresults, og_creport = get_utility_metrics(train_data, hpo_data, og_syn_data, scaler="MinMax", type={"Classification":["xgb","lr","dt","rf","mlp"]})
 og = og_cresults.drop(["Model"],axis=1).groupby(["Type"]).mean().sort_values(by="F1_Score", ascending=False).head(100)
 og["Type"] = og.index
 og["Desc"] = "Original with hpo sized samples (train-hpo (hposized))"
 og_creport["Desc"] = "Original with hpo sized samples (train-hpo (hposized))"
 
+np.random.seed(42)
 more_samples_results, more_samples_cr = get_utility_metrics(train_data, hpo_data, og_more_samples, scaler="MinMax",type={"Classification":["xgb","lr","dt","rf","mlp"]})
 msr = more_samples_results.drop(["Model"],axis=1).groupby(["Type"]).mean().sort_values(by="F1_Score", ascending=False).head(100)
 msr["Desc"] = "Original with train sized samples (train-hpo (trainsized))"
@@ -49,12 +50,14 @@ more_samples_cr["Desc"] = "Original with train sized samples (train-hpo (trainsi
 test_data = pd.concat([test_data, hpo_data])
 test_data.reset_index(drop=True, inplace=True)
 
+np.random.seed(42)
 og_more_test_samples, og_more_test_cr = get_utility_metrics(train_data, test_data, og_syn_data, scaler="MinMax",type={"Classification":["xgb","lr","dt","rf","mlp"]})
 og_more_test_samples_res = og_more_test_samples.drop(["Model"],axis=1).groupby(["Type"]).mean().sort_values(by="F1_Score", ascending=False).head(100)
 og_more_test_samples_res["Desc"] = "Original with hpo sized samples, more test data (train- test+hpo))"
 og_more_test_samples_res["Type"] = og_more_test_samples_res.index
 og_more_test_cr["Desc"] = "Original with hpo sized samples, more test data (train- test+hpo))"
 
+np.random.seed(42)
 more_test_samples, more_test_cr = get_utility_metrics(train_data, test_data, og_more_samples, scaler="MinMax",type={"Classification":["xgb","lr","dt","rf","mlp"]})
 more_test_samples_res = more_test_samples.drop(["Model"],axis=1).groupby(["Type"]).mean().sort_values(by="F1_Score", ascending=False).head(100)
 more_test_samples_res["Desc"] = "Original with train sized samples, more test data (train- test+hpo))"
@@ -64,5 +67,5 @@ more_test_cr["Desc"] = "Original with train sized samples, more test data (train
 results = pd.concat([og, msr, og_more_test_samples_res, more_test_samples_res])
 reports = pd.concat([og_creport, more_samples_cr, og_more_test_cr, more_test_cr])
 
-results.to_csv("thesisgan/output/ctabgan_best_model/table/ctabgan_best_results.csv", index=False)
-reports.to_csv("thesisgan/output/ctabgan_best_model/table/ctabgan_best_reports.csv", index=False)
+results.to_csv("thesisgan/output/ctabgan_best_model_2/ctabgan_best_results_2.csv", index=False)
+reports.to_csv("thesisgan/output/ctabgan_best_model_2/ctabgan_best_reports_2.csv", index=False)

@@ -9,15 +9,8 @@ pio.renderers.default = 'iframe'
 from table_evaluator import TableEvaluator
 
 def eval_model(real_data, syn_data, metadata, op_dir):
-            
-
+    
     scores = {}
-    print("Statistical Analysis: Data Distribution, Cumsum, Statistical Similarity and Correlation")
-    table_eval = TableEvaluator(real_data, syn_data, verbose=True)  # Added a comma between real_data and syn_data
-    table_eval.visual_evaluation(op_dir)
-    
-    print("Statistical Analysis complete. Check the output folder for the plots.")
-    
     print("\n Diagnostic Report: Data Validity and Structure")
     diagnostic = DiagnosticReport()
     diagnostic.generate(real_data, syn_data, metadata, verbose=True)
@@ -47,6 +40,20 @@ def eval_model(real_data, syn_data, metadata, op_dir):
     print("\n Column Shapes score: ", str(column_shapes),
           "\n Column Pair Trends score: ", str(), "...Plotted graphs for reference.")
 
+    real = real_data.copy()
+    syn = syn_data.copy()
+    #remove columns with only one unique value
+    for col in real_data.columns:
+        if len(real_data[col].unique()) == 1:
+            print(f"Removing column {col} as it has only one unique value")
+            real.drop(columns=[col], inplace=True)
+            syn.drop(columns=[col], inplace=True)
+            
+    print("Statistical Analysis: Data Distribution, Cumsum, Statistical Similarity and Correlation")
+    table_eval = TableEvaluator(real, syn, verbose=True)  # Added a comma between real_data and syn_data
+    table_eval.visual_evaluation(op_dir)
+    
+    print("Statistical Analysis complete. Check the output folder for the plots.")
     return scores
 
 def create_bar_plot(data, x, y, hue, op_dir, name):

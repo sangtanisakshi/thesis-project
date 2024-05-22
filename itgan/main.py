@@ -121,14 +121,14 @@ def wrapper(arg, G_args, train_df, test_df, meta, categoricals, ordinals):
     
     return hpo
 
-def sample(model, test_data, args, op_path):
+def sample(model, train_data, test_data, args, op_path):
         
         os.makedirs(op_path, exist_ok=True)
         print("Saving?" + args["save"])
         if args["save"]:
             pickle.dump(model, open(str(op_path+"model.pkl"), "wb"))
             
-        num_samples = test_data.shape[0] if args["num_samples"] is None else args["num_samples"]
+        num_samples = train_data.shape[0] if args["num_samples"] is None else args["num_samples"]
 
         sample_start = time.time()
         sampled = model.sample(
@@ -379,7 +379,7 @@ if __name__ == "__main__":
     if arg_of_parser.hpo:
         train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
         print("Data Loaded")
-        logging.basicConfig(filename='it/test_gc_log.log', level=logging.DEBUG)
+        logging.basicConfig(filename='it/rtol_atol_4.log', level=logging.DEBUG)
         logging.debug("HPO started")
         study = optuna.create_study(direction="minimize", sampler=TPESampler(seed=123))
         study.optimize(wrapper(arg, G_args, train_df, test_df, meta, categoricals, ordinals), n_trials=arg_of_parser.n_trials, gc_after_trial=True)
@@ -402,34 +402,34 @@ if __name__ == "__main__":
             'dis_dim': (256, 256, 256), 
             'D_dropout': 0.5, 
             'D_leaky': 0.2, 
-            'hdim_factor': 1.5, 
-            'likelihood_coef': -0.1, 
-            'G_learning_term': 5, 
+            'hdim_factor': 1.0, 
+            'likelihood_coef': -0.014, 
+            'G_learning_term': 3, 
             'D_learning_term': 6, 
-            'likelihood_learn_term': 1
+            'likelihood_learn_term': 6
         }
         arg.update({"data_name": "malware_hpo"})
         config = {}
         config.update(hpo_params)
         train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
         print("Data Loaded")
-        logging.basicConfig(filename='it/manual_1_20ep_2.log', level=logging.DEBUG)
+        logging.basicConfig(filename='it/rtol_atol_1e-2_0.log', level=logging.DEBUG)
         logging.debug("HPO started manually")
         G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
         config.update(arg)
         logging.info("Config: ", config)
         logging.info("Started trial new ")
         wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
-                            group="itgan_manual_hpo_20ep", notes=config['description'])
+                            group="itgan_manual_hpo_rtolatol", notes=config['description'])
         logging.info("wandb initialized")
         config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
         synthesizer = AEGANSynthesizer(config)
         logging.info("Synthesizer created")
         gan_loss = synthesizer.fit(train_df, test_df, meta, config["data_name"], categoricals, ordinals)
-        wandb.log({"WGAN-GP_experiment": gan_loss, "trial": "1"})
+        wandb.log({"WGAN-GP_experiment": gan_loss, "trial": "0"})
         # get the current sweep id and create an output folder for the sweep
-        op_path = (config['save_loc'] + config['wandb_run'] + "/1_20ep/" + "/")
+        op_path = (config['save_loc'] + config['wandb_run'] + "/0/" + "/")
         test_data, sampled_data = sample(synthesizer, test_df, config, op_path)
-        eval(train_df, test_data, sampled_data, op_path, "1")
+        eval(train_df, test_data, sampled_data, op_path, "0")
         wb_run.finish()
         logging.debug("Finished trial")

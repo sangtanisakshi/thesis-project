@@ -1,0 +1,59 @@
+{0: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512), 
+    'embedding_dim': 32, 'dis_dim': (256, 256, 256), 
+    'D_dropout': 0, 'D_leaky': 0, 'hdim_factor': 1.0, 
+    'likelihood_coef': 0.1, 'G_learning_term': 1, 'D_learning_term': 6, 'likelihood_learn_term': 6,
+    loss: 0.012761897407472134}
+
+1: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512), 
+    'embedding_dim': 128, 'dis_dim': (256, 256, 256), 
+    'D_dropout': 0.5, 'D_leaky': 0.2, 'hdim_factor': 1.5, 
+    'likelihood_coef': -0.1, 'G_learning_term': 5, 'D_learning_term': 6, 'likelihood_learn_term': 1,
+    loss: 7.053318023681641}
+
+2: {'compress_dims': (256, 128), 'decompress_dims': (128, 256), 
+    'embedding_dim': 64, 'dis_dim': (256, 256), 
+    'D_dropout': 0, 'D_leaky': 0, 'hdim_factor': 1.0, 
+    'likelihood_coef': -0.01, 'G_learning_term': 3, 'D_learning_term': 3, 'likelihood_learn_term': 6,
+    loss: 0.8813996315002441}
+
+3: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512), 
+    'embedding_dim': 128, 'dis_dim': (256, 256, 256), 
+    'D_dropout': 0, 'D_leaky': 0, 'hdim_factor': 1.0, 
+    'likelihood_coef': 0, 'G_learning_term': 3, 'D_learning_term': 1, 'likelihood_learn_term': 5,
+    loss: 0.2731921076774597}
+
+4: {'compress_dims': (256, 128), 'decompress_dims': (128, 256), 
+    'embedding_dim': 128, 'dis_dim': (256, 256, 256), 
+    'D_dropout': 0, 'D_leaky': 0, 'hdim_factor': 1.5, 
+    'likelihood_coef': 0.1, 'G_learning_term': 6, 'D_learning_term': 6, 'likelihood_learn_term': 3,
+    loss: 0.37656956911087036}
+
+5: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512), 
+    'embedding_dim': 128, 'dis_dim': (256, 256), 
+    'D_dropout': 0.5, 'D_leaky': 0.2, 'hdim_factor': 1.5, 
+    'likelihood_coef': 0.01, 'G_learning_term': 3, 'D_learning_term': 3, 'likelihood_learn_term': 6,
+    loss: 0.05560962110757828}
+
+6: {'compress_dims': (256, 128), 'decompress_dims': (128, 256), 
+    'embedding_dim': 32, 'dis_dim': (256, 256, 256), 
+    'D_dropout': 0, 'D_leaky': 0, 'hdim_factor': 1.0, 
+    'likelihood_coef': 0, 'G_learning_term': 3, 'D_learning_term': 6, 'likelihood_learn_term': 6,
+    loss: 0.4791716933250427}
+
+7: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512),
+    'embedding_dim': 64, 'dis_dim': (256, 256), 
+    'D_dropout': 0.5, 'D_leaky': 0.2, 'hdim_factor': 1.0, 
+    'likelihood_coef': 0, 'G_learning_term': 5, 'D_learning_term': 1, 'likelihood_learn_term': 3,
+    loss: 1.917232632637024}
+
+8: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512), 
+    'embedding_dim': 128, 'dis_dim': (256, 256, 256), 
+    'D_dropout': 0.5, 'D_leaky': 0.2, 'hdim_factor': 1.0, 
+    'likelihood_coef': -0.014, 'G_learning_term': 3, 'D_learning_term': 6, 'likelihood_learn_term': 6,
+    loss: 5.983443737030029}
+
+9: {'compress_dims': (512, 256, 128), 'decompress_dims': (128, 256, 512), 
+    'embedding_dim': 128, 'dis_dim': (256, 256),
+    'D_dropout': 0.5, 'D_leaky': 0, 'hdim_factor': 1.0, 
+    'likelihood_coef': -0.01, 'G_learning_term': 3, 'D_learning_term': 3, 'likelihood_learn_term': 3}
+

@@ -80,7 +80,7 @@ def supervised_model_training(x_train, y_train, x_test,
       standard_error_auc = np.sqrt((auc*(1-auc))/len(y_test))
       f1_score = metrics.precision_recall_fscore_support(y_test, pred,average="macro")[2]
       standard_error_f1 = np.sqrt((f1_score*(1-f1_score))/len(y_test))
-      classification_report = metrics.classification_report(y_test,pred, target_names=['benign', 'bruteForce', 'dos', 'pingScan', 'portScan'])
+      classification_report = metrics.classification_report(y_test,pred, target_names=['benign', 'bruteForce', 'portScan', 'pingScan', 'dos'])
       return [acc, auc, f1_score, standard_error_acc, standard_error_auc, standard_error_f1], classification_report
 
     else:
@@ -193,7 +193,6 @@ def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Cl
     scaler_fake.fit(data_fake_X)
     
     X_train_fake_scaled = scaler_fake.transform(X_train_fake)
-    all_fake_errors = []
     all_fake_results = []
     fake_cr = pd.DataFrame()
     for model in models:
@@ -208,11 +207,13 @@ def get_utility_metrics(real_data,test_data,fake_paths,scaler="MinMax",type={"Cl
     real_cr["precision"] = (real_cr["precision"]).astype("float64")
     real_cr["recall"] = real_cr["recall"].astype("float64")
     real_cr["f1-score"] = real_cr["f1-score"].astype("float64")
+    real_cr["support"] = real_cr["support"].astype("float64")
     real_cr["support"] = real_cr["support"].astype("int64")
 
     fake_cr["precision"] = fake_cr["precision"].astype("float64")
     fake_cr["recall"] = fake_cr["recall"].astype("float64")
     fake_cr["f1-score"] = fake_cr["f1-score"].astype("float64")
+    fake_cr["support"] = fake_cr["support"].astype("float64")
     fake_cr["support"] = fake_cr["support"].astype("int64")
 
     real_cr["type"] = "real"

@@ -30,9 +30,9 @@ def seed_everything(seed=42):
     
 def argument_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--wandb_run", type=str, default="ctabgan_sweep_run")
+    parser.add_argument("--wandb_run", type=str, default="ctabgan_hpo_new")
     parser.add_argument("--desc", type=str, default="HPO Run for CTABGAN with optuna")
-    parser.add_argument("--hpo", default=False)
+    parser.add_argument("--hpo", action=argparse.BooleanOptionalAction)
     parser.add_argument("--test_ratio", type=float, default=0.00003)
     parser.add_argument("--categorical_columns", nargs='+', default=['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type'])
     parser.add_argument("--log_columns", nargs='+', default=[])
@@ -42,12 +42,12 @@ def argument_parser():
     parser.add_argument("--integer_columns", nargs='+', default=[])
     parser.add_argument("--problem_type", type=dict, default={"Classification": 'attack_type'})
     parser.add_argument("--seed", type=int, default=23)
-    parser.add_argument("--save", default=True)
+    parser.add_argument("--save", action=argparse.BooleanOptionalAction)
     parser.add_argument("--random_dim", type=int, default=100)
     parser.add_argument("--class_dim", type=str, default=(512,512,512,512))
     parser.add_argument("--num_channels", type=int, default=64)
     parser.add_argument("--weight_decay", type=float, default=1e-5)
-    parser.add_argument("-bs", "--batch_size", type=int, default=500)
+    parser.add_argument("-bs", "--batch_size", type=int, default=2000)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("-ns", "--num_samples", type=int, default=None)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
@@ -58,7 +58,7 @@ def argument_parser():
     parser.add_argument("--op_path", type=str, default="thesisgan/output/")
     parser.add_argument("--test_data", type=str, default="thesisgan/input/new_hpo_data.csv")
     parser.add_argument("--n_trials", type=int, default=10)
-    parser.add_argument("--cv", default=False)
+    parser.add_argument("--cv", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     return args
 
@@ -69,16 +69,15 @@ def get_hpo_parameters(trial):
     class_dim = trial.suggest_categorical('class_dim',[(256,256,256,256), (512,512,512,512)])
     num_channels = trial.suggest_categorical('num_channels',[32, 64, 128])
     weight_decay = trial.suggest_float("weight_decay",1e-6,1e-3,log=True)
-    batch_size = trial.suggest_categorical('batch_size',[500, 1000])
     lr = trial.suggest_float("lr",1e-4,1e-3,log=True)
     lr_betas = trial.suggest_categorical('lr_betas',[(0.5, 0.9), (0.5, 0.95), (0.9, 0.999)])
     eps = trial.suggest_categorical('eps',[1e-3, 1e-4, 1e-5])
     lambda_ = trial.suggest_categorical('lambda_',[10, 20, 30])
-    hpo_params = dict({"random_dim": random_dim, "class_dim": class_dim, "num_channels": num_channels, "weight_decay": weight_decay, "batch_size": batch_size, "lr": lr, "lr_betas": lr_betas, "eps": eps, "lambda_": lambda_})
+    hpo_params = dict({"random_dim": random_dim, "class_dim": class_dim, "num_channels": num_channels, "weight_decay": weight_decay, "lr": lr, "lr_betas": lr_betas, "eps": eps, "lambda_": lambda_})
     print("Hyperparameters for current trial: ",hpo_params)
     return hpo_params
 
-def wrapper(train_data, rest_args):
+def wrapper(train_data, rest_args, test_data):
     def hpo(trial):
         hpo_params = get_hpo_parameters(trial)
         config = {}
@@ -87,7 +86,7 @@ def wrapper(train_data, rest_args):
         print(config)
         wandb.init(project="masterthesis",
                     config=config,
-                    group="CTABGAN_SWEEP_OPTUNA", 
+                    group="CTABGAN_HPO_NEW", 
                     notes=rest_args["desc"],
                     mode="offline")
         synthesizer = CTABGANSynthesizer(config)
@@ -107,7 +106,7 @@ def wrapper(train_data, rest_args):
         wandb.log({"WGAN-GP_experiment": gan_loss, "trial": trial.number})
         trial = str(trial.number)
         op_path = (rest_args['op_path'] + rest_args['wandb_run'] + "/" + trial + "/")
-        test_data, syn_data = sample_data(synthesizer, rest_args, op_path, data_prep)
+        syn_data = sample_data(synthesizer, rest_args, op_path, train_data, data_prep)
         eval(train_data, test_data, syn_data, op_path)
         wandb.finish()
         return gan_loss
@@ -120,7 +119,6 @@ def sample_data(model, args, op_path, train_data, data_prep, cv=False):
     print("Saving?: ",args["save"])
     if args["save"]:
         pickle.dump(model, open(str(op_path+"pklmodel.pkl"), "wb"))
-
 
     n = train_data.shape[0] if args["num_samples"] is None else args["num_samples"]
     
@@ -159,18 +157,7 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
         "label": {"sdtype": "categorical"},
         }
         }
-
-    print("Unique Values:" , test_data["attack_type"].unique(), test_data["label"].unique(), 
-                         sample_data["attack_type"].unique(), sample_data["label"].unique())
-    le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-                
-    le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-    for c in le_dict.keys():
-        le_dict[c] = LabelEncoder()
-        test_data[c] = le_dict[c].fit_transform(test_data[c])
-        sample_data[c] = le_dict[c].fit_transform(sample_data[c])
-        train_data[c] = le_dict[c].fit_transform(train_data[c])
-        
+    
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     for col in cat_cols:
         test_data[col] = test_data[col].astype(str)
@@ -183,15 +170,13 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
     imgs = [np.asarray(Image.open(f)) for f in sorted(glob.glob(op_path + "*.png"))]
     wandb.log({"Evaluation": [wandb.Image(img) for img in imgs]})
     wandb.log(scores)
-    
-    print("Unique Values:" , test_data["attack_type"].unique(), test_data["label"].unique(), 
-                         sample_data["attack_type"].unique(), sample_data["label"].unique())
+
     for col in cat_cols:
         test_data[col] = test_data[col].astype("int64")
         sample_data[col] = sample_data[col].astype("int64")
         train_data[col] = train_data[col].astype("int64")
         
-    if cv==False:
+    if binary==False or cv==False:
         #if the synthetic data has only one unique value for the attack type, add a row with the attack type
         sample_data_value_counts = sample_data["attack_type"].value_counts()
         for i in range(len(sample_data_value_counts)):
@@ -231,7 +216,7 @@ if __name__ == "__main__":
     
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    print(torch.cuda.get_device_name(0))
+        print(torch.cuda.get_device_name(0))
     warnings.filterwarnings("ignore")
     
     seed_everything(args.seed)
@@ -258,38 +243,49 @@ if __name__ == "__main__":
         'problem_type': args.problem_type,
         'test_ratio': args.test_ratio,
         'n_trials': args.n_trials,
+        'batch_size': args.batch_size
         }
     
     else:
         config = args.__dict__
-        
+        print("Config: ",config)
+
     if args.hpo:
         train_data = pd.read_csv(args.ip_path)
-        le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-        for c in le_dict.keys():
-            le_dict[c] = LabelEncoder()
-            train_data[c] = le_dict[c].fit_transform(train_data[c])
-            train_data[c] = train_data[c].astype("int64")
+        test_data = pd.read_csv(args.test_data)
+        attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
+        proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
+        label_type_le = {"normal": 0, "attack": 1, "attacker": 1, "victim": 1}
+        tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
+        #based on the unique values in the dataset, we will create a dictionary to map the values to integers
+        datasets = [train_data, test_data]
+        for dataset in datasets:
+            dataset["attack_type"] = dataset["attack_type"].map(attack_type_le)
+            dataset["proto"] = dataset["proto"].map(proto_le)
+            dataset["tos"] = dataset["tos"].map(tos_le)
+            dataset["label"] = dataset["label"].map(label_type_le)
+            
         sampler = TPESampler(seed=123)  # Make the sampler behave in a deterministic way and get reproducable results
         study = optuna.create_study(direction="minimize",sampler=sampler)
-        study.optimize(wrapper(train_data, rest_args), n_trials=rest_args["n_trials"])
-        joblib.dump(study,("thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.pkl"))
+        study.optimize(wrapper(train_data, rest_args, test_data), n_trials=rest_args["n_trials"])
+        joblib.dump(study,("thesisgan/hpo_results/trials_data/ctabgan_study_2.pkl"))
         study_data = pd.DataFrame(study.trials_dataframe())
-        data_csv = study_data.to_csv("thesisgan/hpo_results/hyperparameter_optimization/trials_data/study.csv")
+        data_csv = study_data.to_csv("thesisgan/hpo_results/trials_data/ctabgan_study_2.csv")
         print("Number of finished trials: {}".format(len(study.trials)))
         print("Best trial params:")
         for key, value in study.best_params.items():
             print(" {}: {}".format(key, value))
-        #get best trial hyperparameters and train the model with that
+        # get best trial hyperparameters and train the model with that
         best_params = SimpleNamespace(**study.best_params)
-  #defining the hyperparameters that need tuning
+        print("Best trial params:",best_params.__dict__)
+
     elif args.cv:
         print("Training with Cross Validation")
-        # update args to set with the best hp of the model - trial 12
+        # update args to set with the best hp of the model - trial 4 (new hpo)
         config.update({
             "problem_type": {"Classification": 'label'},
             "random_dim": 200,
-            "epochs":300,
+            "epochs":1,
             "num_channels": 128,
             "eps": 0.00001,
             "lr": 0.0004969483674705974,
@@ -313,20 +309,25 @@ if __name__ == "__main__":
         # we will first split the data into 5 folds based on the attack type
         # then we will train the model on 4 folds and evaluate on the 5th fold
         # we will repeat this process 5 times
-        config.update({"wandb_run": f"CTABGAN_CV_1"})
+        config.update({"wandb_run": f"CTABGAN_CV_test"})
         wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["desc"],
-                            group="CTABGAN-CV", mode="offline")
+                            group="CTABGAN-CV_test", mode="offline")
         print(f"Starting fold 1")
-        test_df = train_data[train_data["attack_type"] == "dos"]
-        train_df = train_data[train_data["attack_type"] != "dos"]
+        test_df = train_data[train_data["attack_type"] == "bruteForce"]
+        train_df = train_data[train_data["attack_type"] != "bruteForce"]
         
-        le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-        for c in le_dict.keys():
-            le_dict[c] = LabelEncoder()
-            train_df[c] = le_dict[c].fit_transform(train_df[c])
-            train_df[c] = train_df[c].astype("int64")
-            test_df[c] = le_dict[c].fit_transform(test_df[c])
-            test_df[c] = test_df[c].astype("int64")
+        attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
+        proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
+        label_type_le = {"normal": 0, "attack": 1, "attacker": 1, "victim": 1}
+        tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
+        
+        #based on the unique values in the dataset, we will create a dictionary to map the values to integers
+        datasets = [train_df, test_df]
+        for dataset in datasets:
+            dataset["attack_type"] = dataset["attack_type"].map(attack_type_le)
+            dataset["proto"] = dataset["proto"].map(proto_le)
+            dataset["tos"] = dataset["tos"].map(tos_le)
+            dataset["label"] = dataset["label"].map(label_type_le)
             
         synthesizer = CTABGANSynthesizer(config)
         start_time = time.time()
@@ -349,21 +350,29 @@ if __name__ == "__main__":
         syn_data = sample_data(synthesizer, config, op_path, train_df, test_df, data_prep, cv=True)
         eval(train_df, test_df, syn_data, op_path, cv=True, binary=True)
         wandb.finish()
+        
     else:
+        print("Training non-hpo model")
         train_data = pd.read_csv(args.ip_path)
         test_data = pd.read_csv(args.test_data)
-        print("Train and test data loaded")
-        le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-        for c in le_dict.keys():
-            le_dict[c] = LabelEncoder()
-            train_data[c] = le_dict[c].fit_transform(train_data[c])
-            train_data[c] = train_data[c].astype("int64")
-        print("Training non-hpo model")
+    
+        attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
+        proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
+        label_type_le = {"normal": 0, "attack": 1, "attacker": 2, "victim": 3}
+        tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
+        #based on the unique values in the dataset, we will create a dictionary to map the values to integers
+        datasets = [train_data, test_data]
+        for dataset in datasets:
+            dataset["attack_type"] = dataset["attack_type"].map(attack_type_le)
+            dataset["proto"] = dataset["proto"].map(proto_le)
+            dataset["tos"] = dataset["tos"].map(tos_le)
+            dataset["label"] = dataset["label"].map(label_type_le)
+        
         #convert args to a dictionary
         config = args.__dict__
         wandb.init(project="masterthesis",
                     config=config,
-                    group="CTABGAN_BEST_MODEL", 
+                    group="CTABGAN_new_BEST_MODEL", 
                     notes=config["desc"],
                     mode="offline")
         synthesizer = CTABGANSynthesizer(config)
@@ -383,6 +392,6 @@ if __name__ == "__main__":
         wandb.log({"WGAN-GP_experiment": gan_loss})
         op_path = (config['op_path'] + config['wandb_run'] + "/")
         syn_data = sample_data(synthesizer, config, op_path, train_data, data_prep=data_prep)
-        eval(train_data, test_data, syn_data, op_path)
+        eval(train_data, test_data, syn_data, op_path, cv=False, binary=False)
         wandb.finish()
         

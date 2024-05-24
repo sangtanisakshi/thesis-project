@@ -109,7 +109,7 @@ def wrapper(train_data, rest_args):
     
     return hpo
 
-def sample(model, args, op_path, train_data, cv=False):
+def sample(model, args, op_path, train_data):
         
         os.makedirs(op_path, exist_ok=True)
         print("Saving?", str(args["save"]))
@@ -164,7 +164,7 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
     
     attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
     proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
-    label_type_le = {"normal": 0, "attack": 1, "attacker": 1, "victim": 1}
+    label_type_le = {"normal": 0, "attack": 1}
     tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
 
     #based on the unique values in the dataset, we will create a dictionary to map the values to integers
@@ -173,8 +173,7 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
         dataset["attack_type"] = dataset["attack_type"].map(attack_type_le)
         dataset["proto"] = dataset["proto"].map(proto_le)
         dataset["tos"] = dataset["tos"].map(tos_le)
-        if cv==False:
-            dataset["label"] = dataset["label"].map(label_type_le)
+        dataset["label"] = dataset["label"].map(label_type_le)
         
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'attack_type', 'label']
     for col in cat_cols:
@@ -305,11 +304,10 @@ def main():
             print(" {}: {}".format(key, value))
         
     elif args.cv:
-        
         print("Training with Cross Validation")
         # update args to set with the best hp of the model - trial 12
         config.update({
-            "epochs":2,
+            "epochs":1,
             "generator_lr": 0.00010024734990379357,
             "discriminator_lr": 0.00029082495033222255,
             "generator_decay": 0.0000392349472109858,
@@ -323,7 +321,7 @@ def main():
             "seed": 23,
             "train_data": "thesisgan/input/new_train_data.csv",
             "test_data": "thesisgan/input/new_hpo_data.csv",
-            "output": "thesisgan/output/ctgan_cv/"})
+            "output": "thesisgan/output/ctgan_cv_new/"})
 
         # First we will convert the training data label to a binary classification algorithm
         # where normal traffic is 0 and attack traffic is 1
@@ -338,23 +336,23 @@ def main():
         # we will first split the data into 5 folds based on the attack type
         # then we will train the model on 4 folds and evaluate on the 5th fold
         # we will repeat this process 5 times
-        config["wandb_run"] = (f"CTGAN_CV_debug")
+        config["wandb_run"] = "new_0_test"
         wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["description"],
-                            group="CTGAN-CV-debug", mode="offline")
-        print(f"Starting fold 4")
-        test_df = train_data[train_data["attack_type"] == "bruteForce"]
-        train_df = train_data[train_data["attack_type"] != "bruteForce"]
+                            group="CTGAN-CV-new", mode="offline")
+        print(f"Starting fold 0 test")
+        test_df = train_data[train_data["attack_type"] == "benign"]
+        train_df = train_data[train_data["attack_type"] != "benign"]
         model = CTGAN(config)
         gan_loss = model.fit(train_df, discrete_columns, config["epochs"])
-        wandb.log({"gan_loss": gan_loss, "fold": 4, "attack_type": "bruteForce"})
+        wandb.log({"gan_loss": gan_loss, "fold": 0, "attack_type": "benign"})
         op_path = (config["output"] + config["wandb_run"] + "/")
         sampled_data = sample(model, config, op_path, train_df, cv=True)
         eval(train_df, test_df, sampled_data, op_path, cv=True, binary=True)
         wandb.finish()
     else:
+        #normal run or else binary classification
         config.update({
-        
-        "epochs":300,
+        "epochs":100,
         "generator_lr": 0.00010024734990379357,
         "discriminator_lr": 0.00029082495033222255,
         "generator_decay": 0.0000392349472109858,
@@ -362,34 +360,39 @@ def main():
         "embedding_dim": 128,
         "generator_dim": "256,256",
         "discriminator_dim": "1024,1024",
-        "batch_size": 1000,
+        "batch_size": 2000,
         "log_frequency": True,
         "lambda_": 20,
         "seed": 23,
         "train_data": "thesisgan/input/new_train_data.csv",
         "test_data": "thesisgan/input/new_hpo_data.csv",
-        "wandb_run": "CTGAN_binary_classification",
-        "output": "thesisgan/output/"})
+        "wandb_run": "CTGAN_bc_1",
+        "output": "thesisgan/output/",
+        "description": "Binary classification using CTGAN best model"})
         # First we will convert the training data label to a binary classification algorithm
         # where normal traffic is 0 and attack traffic is 1
         test_data = pd.read_csv(config["test_data"])
         binary = True
         if binary:
-            train_data["label"] = train_data["label"].apply(lambda x: 0 if x == "normal" else 1)
+            label_type_le = {"normal": "normal", "attacker": "attack", "victim": "attack"}
+            train_data["label"] = train_data["label"].map(label_type_le)
+            test_data["label"] = test_data["label"].map(label_type_le)
             #move the label at the end of the dataframe
             cols = list(train_data.columns)
             cols.remove("label")
             cols.append("label")
             train_data = train_data[cols]
+            test_data = test_data[cols]
+            
         wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["description"],
                                 group="CTGAN-BINARY", mode="offline")
-        print("Training model...")
+        print("Training plain model...")
         model = CTGAN(config)
-        gan_loss = model.fit(train_df, discrete_columns, config["epochs"])
+        gan_loss = model.fit(train_data, discrete_columns, config["epochs"])
         wandb.log({"gan_loss": gan_loss})
         op_path = (config["output"] + config["wandb_run"] + "/")
-        sampled_data = sample(model, config, op_path, train_df, cv=True)
-        eval(train_df, test_df, sampled_data, op_path, cv=True, binary=True)
+        sampled_data = sample(model, config, op_path, train_data)
+        eval(train_data, test_data, sampled_data, op_path, cv=False, binary=True)
         wandb.finish()
 if __name__ == '__main__':
     main()

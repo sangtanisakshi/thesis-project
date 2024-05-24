@@ -78,15 +78,15 @@ class DataPrep(object):
 
         for column_index, column in enumerate(self.df.columns):            
             if column in self.categorical_columns:        
-                label_encoder = preprocessing.LabelEncoder()
-                self.df[column] = self.df[column].astype(str)
-                label_encoder.fit(self.df[column])
-                current_label_encoder = dict()
-                current_label_encoder['column'] = column
-                current_label_encoder['label_encoder'] = label_encoder
-                transformed_column = label_encoder.transform(self.df[column])
-                self.df[column] = transformed_column
-                self.label_encoder_list.append(current_label_encoder)
+                #label_encoder = preprocessing.LabelEncoder()
+                #self.df[column] = self.df[column].astype(str)
+                #label_encoder.fit(self.df[column])
+                #current_label_encoder = dict()
+                #current_label_encoder['column'] = column
+                #current_label_encoder['label_encoder'] = label_encoder
+                #ransformed_column = label_encoder.transform(self.df[column])
+                #self.df[column] = transformed_column
+                #self.label_encoder_list.append(current_label_encoder)
                 self.column_types["categorical"].append(column_index)
 
                 if column in self.general_columns:
@@ -108,9 +108,9 @@ class DataPrep(object):
         
         df_sample = pd.DataFrame(data,columns=self.df.columns)
      
-        for i in range(len(self.label_encoder_list)):
+        #for i in range(len(self.label_encoder_list)):
            # le = self.label_encoder_list[i]["label_encoder"]
-            df_sample[self.label_encoder_list[i]["column"]] = df_sample[self.label_encoder_list[i]["column"]].astype(int)
+            #df_sample[self.label_encoder_list[i]["column"]] = df_sample[self.label_encoder_list[i]["column"]].astype(int)
            # df_sample[self.label_encoder_list[i]["column"]] = le.inverse_transform(df_sample[self.label_encoder_list[i]["column"]])
 
         if self.log_columns:

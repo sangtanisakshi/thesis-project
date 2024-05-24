@@ -21,17 +21,22 @@ data_prep = DataPrep(train_data, ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp
                      [], {}, [], ['packets', 'src_pt', 'dst_pt', 'duration', 'bytes'], [],
                      {"Classification": 'attack_type'}, 0.00003)
 
+attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
+proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
+label_type_le = {"normal": 0, "attack": 1, "attacker": 2, "victim": 3}
+tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
+
+#based on the unique values in the dataset, we will create a dictionary to map the values to integers
+datasets = [train_data, hpo_data, test_data, og_syn_data]
+for dataset in datasets:
+    dataset["attack_type"] = dataset["attack_type"].map(attack_type_le)
+    dataset["proto"] = dataset["proto"].map(proto_le)
+    dataset["tos"] = dataset["tos"].map(tos_le)
+    dataset["label"] = dataset["label"].map(label_type_le)
+    
 more_samples = ctabgan_best.sample(train_data.shape[0])
 og_more_samples = data_prep.inverse_prep(more_samples)
 
-le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-for c in le_dict.keys():
-    le_dict[c] = LabelEncoder()
-    test_data[c] = le_dict[c].fit_transform(test_data[c])
-    train_data[c] = le_dict[c].fit_transform(train_data[c])
-    hpo_data[c] = le_dict[c].fit_transform(hpo_data[c])
-    og_syn_data[c] = le_dict[c].fit_transform(og_syn_data[c])
-    og_more_samples[c] = le_dict[c].fit_transform(og_more_samples[c])
 
 np.random.seed(42)
 og_cresults, og_creport = get_utility_metrics(train_data, hpo_data, og_syn_data, scaler="MinMax", type={"Classification":["xgb","lr","dt","rf","mlp"]})

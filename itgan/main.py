@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument('--seed', type=int, default = 42)
     parser.add_argument('--hpo', default = False)
     parser.add_argument('--save', default = True)
-    parser.add_argument('--epochs',type =int, default = 50)  
+    parser.add_argument('--epochs',type =int, default = 200)  
     parser.add_argument('--n_trials', type=int, default = 8)
     parser.add_argument('--num_samples', type=int, default = None)
     parser.add_argument('--emb_dim', type=int, default = "128") # dim(h)
@@ -150,7 +150,7 @@ def sample(model, train_data, test_data, args, op_path):
         print("Test_data", test_data.info())
         return test_data, syn_data
     
-def eval(train_data, test_data, sample_data, op_path, trial):
+def eval(train_data, test_data, sample_data, op_path):
     eval_metadata = {
         "columns" : 
         {
@@ -175,31 +175,16 @@ def eval(train_data, test_data, sample_data, op_path, trial):
     'bytes', 'tcp_ack', 'tcp_psh','tcp_rst', 'tcp_syn', 'tcp_fin', 
     'tos','label','attack_type']
     train_data = pd.DataFrame(train_data, columns=df_columns)
-    
-    print(train_data.info())
-    #remove columns with only one unique value
-    for col in test_data.columns:
-        if len(test_data[col].unique()) == 1:
-            print("Removing column, ", col, " as it has only one unique value")
-            test_data.drop(columns=[col], inplace=True)
-            sample_data.drop(columns=[col], inplace=True)
 
-    le_dict = {"attack_type": "le_attack_type", "label": "le_label", "proto": "le_proto", "tos": "le_tos"}
-    for c in le_dict.keys():
-        le_dict[c] = LabelEncoder()
-        test_data[c] = le_dict[c].fit_transform(test_data[c])
-        sample_data[c] = le_dict[c].fit_transform(sample_data[c])
-        train_data[c] = le_dict[c].fit_transform(train_data[c])
+    cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
+    for c in cat_cols:
         test_data[c] = test_data[c].astype("int64")
         sample_data[c] = sample_data[c].astype("int64")
         train_data[c] = train_data[c].astype("int64")
-        
-    cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
-    for col in cat_cols:
-        test_data[col] = test_data[col].astype(str)
-        sample_data[col] = sample_data[col].astype(str)
-        train_data[col] = train_data[col].astype(str)
-    
+        test_data[c] = test_data[c].astype(str)
+        sample_data[c] = sample_data[c].astype(str)
+        train_data[c] = train_data[c].astype(str)
+
     #Data Evaluation
     scores = eval_model(test_data, sample_data, eval_metadata, op_path)
 
@@ -280,11 +265,11 @@ if __name__ == "__main__":
             'divergence_fn' : "approximate", # how to calculate jacobian matrix ["brute_force", "approximate"]
             'nonlinearity' : "tanh", # the act func to use # ["tanh", "relu", "softplus", "elu", "swish", "square", "identity"]
             'solver' : "dopri5", # ode solver ["dopri5", "bdf", "rk4", "midpoint", 'adams', 'explicit_adams', 'fixed_adams']
-            'atol' : 1e-3,
-            'rtol' : 1e-3,
+            'atol' : 1e-2,
+            'rtol' : 1e-2,
             'test_solver' : "dopri5", # ode solver ["dopri5", "bdf", "rk4", "midpoint", 'adams', 'explicit_adams', 'fixed_adams']
-            'test_atol' : 1e-3,
-            'test_rtol' : 1e-3,
+            'test_atol' : 1e-2,
+            'test_rtol' : 1e-2,
             'step_size' : None, # "Optional fixed step size." <float, None>
             'first_step' : 0.166667, # only for adaptive solvers  <float> 
             'residual' : True,  # use residual net odefunction [True, False]
@@ -308,8 +293,8 @@ if __name__ == "__main__":
             } # use adjoint method for backpropagation [True, False]
     
     arg = {
-            "rtol":1e-3,
-            "atol":1e-3,
+            "rtol":1e-2,
+            "atol":1e-2,
             "batch_size":4096,
             "random_num":23,
             "GPU_NUM":0,
@@ -396,40 +381,44 @@ if __name__ == "__main__":
         best_params = SimpleNamespace(**study.best_params)
     else:
         hpo_params = {
-            'compress_dims': (512, 256, 128), 
-            'decompress_dims': (128, 256, 512), 
+            'compress_dims': (256, 128), 
+            'decompress_dims': (128, 256), 
             'embedding_dim': 128, 
             'dis_dim': (256, 256, 256), 
-            'D_dropout': 0.5, 
-            'D_leaky': 0.2, 
-            'hdim_factor': 1.0, 
-            'likelihood_coef': -0.014, 
-            'G_learning_term': 3, 
+            'D_dropout': 0, 
+            'D_leaky': 0, 
+            'hdim_factor': 1.5, 
+            'likelihood_coef': 0.1, 
+            'G_learning_term': 6, 
             'D_learning_term': 6, 
-            'likelihood_learn_term': 6
+            'likelihood_learn_term': 3,
+            'epochs': 80,
+            'description': 'params of 1m7msbiu (trial 4)',
+            'wandb_run': 'itgan_best_model_4_80ep',
         }
-        arg.update({"data_name": "malware_hpo"})
+        arg.update({"data_name": "malware_best_model"})
         config = {}
+        config.update(arg)
         config.update(hpo_params)
-        train_df, test_df, meta, categoricals, ordinals = load_dataset(arg["data_name"], benchmark=True)
+        train_df, test_df, meta, categoricals, ordinals = load_dataset(config["data_name"], benchmark=True)
         print("Data Loaded")
-        logging.basicConfig(filename='it/rtol_atol_1e-2_0.log', level=logging.DEBUG)
+        logging.basicConfig(filename='it/itgan_best_model_4_80ep', level=logging.DEBUG)
         logging.debug("HPO started manually")
         G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
-        config.update(arg)
         logging.info("Config: ", config)
-        logging.info("Started trial new ")
+        logging.info("Started trial new")
         wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
-                            group="itgan_manual_hpo_rtolatol", notes=config['description'])
+                            group="itgan_best_run", notes=config['description'],
+                            name=config["wandb_run"])
         logging.info("wandb initialized")
         config["G_args"] = argument(G_args, hpo_params["embedding_dim"])
         synthesizer = AEGANSynthesizer(config)
         logging.info("Synthesizer created")
         gan_loss = synthesizer.fit(train_df, test_df, meta, config["data_name"], categoricals, ordinals)
-        wandb.log({"WGAN-GP_experiment": gan_loss, "trial": "0"})
+        wandb.log({"WGAN-GP_experiment": gan_loss})
         # get the current sweep id and create an output folder for the sweep
-        op_path = (config['save_loc'] + config['wandb_run'] + "/0/" + "/")
-        test_data, sampled_data = sample(synthesizer, test_df, config, op_path)
-        eval(train_df, test_data, sampled_data, op_path, "0")
+        op_path = (config['save_loc'] + config['wandb_run'] + "/")
+        test_data, sampled_data = sample(synthesizer, train_df, test_df, config, op_path)
+        eval(train_df, test_data, sampled_data, op_path)
         wb_run.finish()
         logging.debug("Finished trial")

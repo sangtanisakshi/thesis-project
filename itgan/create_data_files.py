@@ -61,8 +61,8 @@ def write_npz(train: pd.DataFrame, test: pd.DataFrame, metadata: list, path: Pat
     
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--dataset", type=str, default="malware_hpo")
-    argparser.add_argument("--problem_type", type=str, default="multiclass_classification")
+    argparser.add_argument("--dataset", type=str, default="malware_binary")
+    argparser.add_argument("--problem_type", type=str, default="binary_classification")
     argparser.add_argument("--train_path", type=str, default="thesisgan/input/new_train_data.csv")
     argparser.add_argument("--test_path", type=str, default="thesisgan/input/new_hpo_data.csv")
     argparser.add_argument("--output_path", type=str, default="thesisgan/input/")
@@ -76,6 +76,21 @@ if __name__ == "__main__":
     test_df = pd.read_csv(args.test_path)
     train_df.reset_index(drop=True, inplace=True)
     test_df.reset_index(drop=True, inplace=True)
+    
+    attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
+    proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
+    #label_type_le = {"normal": 0, "attacker": 1, "victim": 2} -- multiclass
+    label_type_le = {"normal": 0, "attacker": 1, "victim": 1, "attack": 1} # -- binary
+    tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
+
+    #based on the unique values in the dataset, we will create a dictionary to map the values to integers
+    datasets = [train_df, test_df]
+    for dataset in datasets:
+        dataset["attack_type"] = dataset["attack_type"].map(attack_type_le)
+        dataset["proto"] = dataset["proto"].map(proto_le)
+        dataset["tos"] = dataset["tos"].map(tos_le)
+        dataset["label"] = dataset["label"].map(label_type_le)
+    
     train_metadata = get_metadata(train_df)
     test_metadata = get_metadata(test_df)
     write_metadata(train_metadata, args.problem_type, save_path_json_train)

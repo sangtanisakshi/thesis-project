@@ -1,30 +1,21 @@
-TODO 10th May:
-- Add XGBoost to the evaluation for all runs x 3 - DONE
-- Select best run from macro_avg + loss functions x 3 - DONE FOR 2
-- Run with the best runs x 3 - DONE FOR 2
-- Run CTGAN with a condition to "oversample" the bruteforce and pingscan and then evaluation
-- Run CTGAN where all the attack types are equally distributed
-- Label as target value - binary classification on all three final models
-- CTGAN with Label target value equally distributed
-- Add cross validation with attack type as the split and 5 folds and the label as target value where it is binary - normal or attacker
+Total Experiments:
+- HPO run for all three (CTGAN 20 runs, CTAB 10, ITGAN 10) - DONE
+- Best model run of all three - DONE
+- CTGAN no condition - DONE
+- CTGAN with equally distributed attack type - DONE
+- CTGAN with oversampling the underrepresented classes - DONE
+- CTGAN with Label target value equally distributed - DONE
+- CTGAN and CTABGAN Cross Validation on where split on attack_type but binary classification on label - normal or attacker and then average the results
+- No Cross validation, run the best model for binary classification - all 3
+- Identity and UniformSynthesizer as baseline + Compare classification metrics for all 3 - DONE
+- Compare training time for all 3 - DONE
+- Compare sampling time for all 3 - DONE
+- Adversarial Validation for all 3 - attack_type and label
 
 
-Experiments total:
-- HPO run for all three 
-- Best run for all three
-- CTGAN with no condition
-- CTGAN with condition - oversample the underrepresented classes
-- CTGAN with condition - equal distribution of all classes
-- Add cross validation with attack type as the split and 5 folds and the label as target value where it is binary - normal or attacker
-- Label as target value - binary classification on all three final models
-- CTGAN with Label target value equally distributed
-- Compare training time for all 3
-- Compare sampling time for all 3
-- Add UniformSynthesizer as baseline
-
-- Meeting:
-- Tell them cross validation is not feasible on itgan
-- Ask :
-    1. Related Work -> General papers, and then our 3 models 
-        or
-    2. Related Work -> General papers AND then Models -> Going deeper into our 3 models
+To do:
+- Rerun the utility metrics for ctabgan model
+- ITGAN Binary
+- CTAB Binary
+- CTAB CV
+- Adversarial Validation

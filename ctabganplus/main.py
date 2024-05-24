@@ -40,23 +40,23 @@ def argument_parser():
     parser.add_argument("--general_columns", nargs='+', default=[])
     parser.add_argument("--non_categorical_columns", nargs='+', default= ['packets','src_pt','dst_pt','duration','bytes'])
     parser.add_argument("--integer_columns", nargs='+', default=[])
-    parser.add_argument("--problem_type", type=dict, default={"Classification": 'attack_type'})
+    parser.add_argument("--problem_type", type=dict, default={"Classification": 'label'})
     parser.add_argument("--seed", type=int, default=23)
     parser.add_argument("--save", action=argparse.BooleanOptionalAction)
     parser.add_argument("--random_dim", type=int, default=100)
     parser.add_argument("--class_dim", type=str, default=(512,512,512,512))
     parser.add_argument("--num_channels", type=int, default=64)
     parser.add_argument("--weight_decay", type=float, default=1e-5)
-    parser.add_argument("-bs", "--batch_size", type=int, default=2000)
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("-bs", "--batch_size", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("-ns", "--num_samples", type=int, default=None)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
     parser.add_argument("-lr_betas", "--lr_betas", type=tuple, default=(0.9, 0.999))
     parser.add_argument("-eps", "--eps", type=float, default=1e-3)
     parser.add_argument("--lambda_", type=float, default=10)
-    parser.add_argument("--ip_path", type=str, default="thesisgan/input/new_train_data.csv")
+    parser.add_argument("--ip_path", type=str, default="thesisgan/input/new_hpo_data.csv")
     parser.add_argument("--op_path", type=str, default="thesisgan/output/")
-    parser.add_argument("--test_data", type=str, default="thesisgan/input/new_hpo_data.csv")
+    parser.add_argument("--test_data", type=str, default="thesisgan/input/new_test_data.csv")
     parser.add_argument("--n_trials", type=int, default=10)
     parser.add_argument("--cv", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
@@ -162,6 +162,7 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
     for col in cat_cols:
         test_data[col] = test_data[col].astype(str)
         sample_data[col] = sample_data[col].astype(str)
+        train_data[col] = train_data[col].astype(str)
     
     #Data Evaluation
     scores = eval_model(test_data, sample_data, eval_metadata, op_path)
@@ -172,8 +173,11 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
     wandb.log(scores)
 
     for col in cat_cols:
+        test_data[col] = test_data[col].astype("float64")
         test_data[col] = test_data[col].astype("int64")
+        sample_data[col] = sample_data[col].astype("float64")
         sample_data[col] = sample_data[col].astype("int64")
+        train_data[col] = train_data[col].astype("float64")
         train_data[col] = train_data[col].astype("int64")
         
     if binary==False or cv==False:
@@ -190,7 +194,7 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
                 sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
 
     #Model Classification
-    model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
+    model_dict =  {"Classification":["xgb"]}
     result_df, cr = get_utility_metrics(train_data,test_data,sample_data,"MinMax", model_dict, cv=cv, binary=binary)
 
     if cv==False:
@@ -299,7 +303,7 @@ if __name__ == "__main__":
         train_data = pd.read_csv(config["ip_path"])
         # First we will convert the training data label to a binary classification algorithm
         # where normal traffic is 0 and attack traffic is 1
-        train_data["label"] = train_data["label"].apply(lambda x: 0 if x == "normal" else 1)
+
         #move the label at the end of the dataframe
         cols = list(train_data.columns)
         cols.remove("label")
@@ -310,8 +314,8 @@ if __name__ == "__main__":
         # then we will train the model on 4 folds and evaluate on the 5th fold
         # we will repeat this process 5 times
         config.update({"wandb_run": f"CTABGAN_CV_test"})
-        wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["desc"],
-                            group="CTABGAN-CV_test", mode="offline")
+        #wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["desc"],
+                            #group="CTABGAN-CV_test", mode="offline")
         print(f"Starting fold 1")
         test_df = train_data[train_data["attack_type"] == "bruteForce"]
         train_df = train_data[train_data["attack_type"] != "bruteForce"]
@@ -355,10 +359,10 @@ if __name__ == "__main__":
         print("Training non-hpo model")
         train_data = pd.read_csv(args.ip_path)
         test_data = pd.read_csv(args.test_data)
-    
+        
         attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
         proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
-        label_type_le = {"normal": 0, "attack": 1, "attacker": 2, "victim": 3}
+        label_type_le = {"normal": 0, "attack": 1, "attacker": 1, "victim": 1}
         tos_le = {0 : 0, 32 : 1, 192 : 2, 16 : 3}
         #based on the unique values in the dataset, we will create a dictionary to map the values to integers
         datasets = [train_data, test_data]
@@ -367,6 +371,12 @@ if __name__ == "__main__":
             dataset["proto"] = dataset["proto"].map(proto_le)
             dataset["tos"] = dataset["tos"].map(tos_le)
             dataset["label"] = dataset["label"].map(label_type_le)
+        
+        cols = list(train_data.columns)
+        cols.remove("label")
+        cols.append("label")
+        train_data = train_data[cols]
+        test_data = test_data[cols]
         
         #convert args to a dictionary
         config = args.__dict__
@@ -392,6 +402,6 @@ if __name__ == "__main__":
         wandb.log({"WGAN-GP_experiment": gan_loss})
         op_path = (config['op_path'] + config['wandb_run'] + "/")
         syn_data = sample_data(synthesizer, config, op_path, train_data, data_prep=data_prep)
-        eval(train_data, test_data, syn_data, op_path, cv=False, binary=False)
+        eval(train_data, test_data, syn_data, op_path, cv=False, binary=True)
         wandb.finish()
         

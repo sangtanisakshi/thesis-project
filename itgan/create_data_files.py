@@ -74,6 +74,12 @@ if __name__ == "__main__":
     save_path_json_test = Path(args.output_path) / Path(args.dataset + "_test.json")
     train_df = pd.read_csv(args.train_path)
     test_df = pd.read_csv(args.test_path)
+    
+    cols = list(train_df.columns)
+    cols.remove('label')
+    cols.append('label')
+    train_df = train_df[cols]
+    test_df = test_df[cols]
     train_df.reset_index(drop=True, inplace=True)
     test_df.reset_index(drop=True, inplace=True)
     

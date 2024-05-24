@@ -121,7 +121,7 @@ def wrapper(arg, G_args, train_df, test_df, meta, categoricals, ordinals):
     
     return hpo
 
-def sample(model, train_data, test_data, args, op_path):
+def sample(model, args, op_path, train_data):
         
         os.makedirs(op_path, exist_ok=True)
         print("Saving?" + args["save"])
@@ -139,18 +139,17 @@ def sample(model, train_data, test_data, args, op_path):
         
         df_columns = ['duration', 'proto', 'src_pt', 'dst_pt', 'packets',
        'bytes', 'tcp_ack', 'tcp_psh','tcp_rst', 'tcp_syn', 'tcp_fin', 
-       'tos','label','attack_type']
+       'tos','attack_type','label']
         syn_data = pd.DataFrame(sampled, columns=df_columns)
-        test_data = pd.DataFrame(test_data, columns=df_columns)
-        
+                
         print("Data sampling complete. Saving synthetic data...")
         syn_data.to_csv(str(op_path+"syn.csv"), index=False)
         print("Synthetic data saved. Check the output folder.") 
         print("Syn Data", syn_data.info())
-        print("Test_data", test_data.info())
-        return test_data, syn_data
+        
+        return syn_data
     
-def eval(train_data, test_data, sample_data, op_path):
+def eval(train_data, test_data, sample_data, op_path, binary=False):
     eval_metadata = {
         "columns" : 
         {
@@ -166,16 +165,17 @@ def eval(train_data, test_data, sample_data, op_path):
         "tcp_syn": {"sdtype": "categorical"},
         "tcp_fin":{"sdtype": "categorical"},
         "tos": {"sdtype": "categorical"},
+        "attack_type": {"sdtype": "categorical"},
         "label": {"sdtype": "categorical"},
-        "attack_type": {"sdtype": "categorical"}
         }
         }
 
     df_columns = ['duration', 'proto', 'src_pt', 'dst_pt', 'packets',
     'bytes', 'tcp_ack', 'tcp_psh','tcp_rst', 'tcp_syn', 'tcp_fin', 
-    'tos','label','attack_type']
+    'tos','attack_type','label']
     train_data = pd.DataFrame(train_data, columns=df_columns)
-
+    test_data = pd.DataFrame(test_data, columns=df_columns)
+    
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     for c in cat_cols:
         test_data[c] = test_data[c].astype("int64")
@@ -194,21 +194,8 @@ def eval(train_data, test_data, sample_data, op_path):
     wandb.log(scores)
     
     print(test_data.attack_type.unique(), sample_data.attack_type.unique(), train_data.attack_type.unique())
-    
-    #if the synthetic data does not have the same attack types as the test data, we need to fix it
-    for at in test_data.attack_type.unique():
-        if at not in sample_data.attack_type.unique():
-            #add a row with the attack type
-            print(at)
-            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
-    
-    #if the synthetic data has only one unique value for the attack type, add a row with the attack type
-    sample_data_value_counts = sample_data["attack_type"].value_counts()
-    for i in range(len(sample_data_value_counts)):
-        if sample_data_value_counts[i] == 1:
-            at = sample_data_value_counts.index[i]
-            sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
-            
+    print(test_data.label.unique(), sample_data.label.unique(), train_data.label.unique())
+
     cat_cols = ['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type']
     for col in cat_cols:
         test_data[col] = test_data[col].astype("float64")
@@ -218,10 +205,36 @@ def eval(train_data, test_data, sample_data, op_path):
         train_data[col] = train_data[col].astype("float64")
         train_data[col] = train_data[col].astype("int64")
     
+    if binary==False:
+        #if the synthetic data has only one unique value for the attack type, add a row with the attack type
+        sample_data_value_counts = sample_data["attack_type"].value_counts()
+        for i in range(len(sample_data_value_counts)):
+            if sample_data_value_counts[i] == 1:
+                at = sample_data_value_counts.index[i]
+                sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
+
+        for at in test_data["attack_type"].unique():
+            if at not in sample_data["attack_type"].unique():
+                #add a row with the attack type
+                sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
+                
+    # else:
+    #     #if the synthetic data has only one unique value for the attack type, add a row with the attack type
+    #     sample_data_value_counts = sample_data["label"].value_counts()
+    #     for i in range(len(sample_data_value_counts)):
+    #         if sample_data_value_counts[i] == 1:
+    #             at = sample_data_value_counts.index[i]
+    #             sample_data = pd.concat([sample_data,train_data[train_data["label"] == at].sample(3)], ignore_index=True)
+
+    #     for at in test_data["label"].unique():
+    #         if at not in sample_data["label"].unique():
+    #             #add a row with the attack type
+    #             sample_data = pd.concat([sample_data,train_data[train_data["label"] == at].sample(3)], ignore_index=True) 
+    
     
     #Model Classification
     model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
-    result_df, cr = get_utility_metrics(train_data, test_data, sample_data,"MinMax", model_dict)
+    result_df, cr = get_utility_metrics(train_data, test_data, sample_data,"MinMax", model_dict,cv=False,binary=binary)
 
     stat_res_avg = []
     stat_res = stat_sim(test_data, sample_data, cat_cols)
@@ -392,21 +405,22 @@ if __name__ == "__main__":
             'G_learning_term': 6, 
             'D_learning_term': 6, 
             'likelihood_learn_term': 3,
-            'epochs': 80,
-            'description': 'params of 1m7msbiu (trial 4)',
-            'wandb_run': 'itgan_best_model_4_80ep',
+            'epochs': 3,
+            'description': 'test - binary - params of 1m7msbiu (trial 4)',
+            'wandb_run': 'test_itgan_binary',
+            'binary': True
         }
-        arg.update({"data_name": "malware_best_model"})
+        arg.update({"data_name": "malware_binary"})
         config = {}
         config.update(arg)
         config.update(hpo_params)
         train_df, test_df, meta, categoricals, ordinals = load_dataset(config["data_name"], benchmark=True)
         print("Data Loaded")
-        logging.basicConfig(filename='it/itgan_best_model_4_80ep', level=logging.DEBUG)
+        logging.basicConfig(filename='it/test_itgan_binary', level=logging.DEBUG)
         logging.debug("HPO started manually")
         G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
         logging.info("Config: ", config)
-        logging.info("Started trial new")
+        logging.info("Started binary trial")
         wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
                             group="itgan_best_run", notes=config['description'],
                             name=config["wandb_run"])
@@ -418,7 +432,7 @@ if __name__ == "__main__":
         wandb.log({"WGAN-GP_experiment": gan_loss})
         # get the current sweep id and create an output folder for the sweep
         op_path = (config['save_loc'] + config['wandb_run'] + "/")
-        test_data, sampled_data = sample(synthesizer, train_df, test_df, config, op_path)
-        eval(train_df, test_data, sampled_data, op_path)
+        sampled_data = sample(synthesizer, config, op_path, train_df)
+        eval(train_df, test_df, sampled_data, op_path, binary=config["binary"])
         wb_run.finish()
-        logging.debug("Finished trial")
+        logging.debug("Finished run")

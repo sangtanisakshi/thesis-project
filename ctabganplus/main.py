@@ -30,8 +30,8 @@ def seed_everything(seed=42):
     
 def argument_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--wandb_run", type=str, default="ctabgan_hpo_new")
-    parser.add_argument("--desc", type=str, default="HPO Run for CTABGAN with optuna")
+    parser.add_argument("--wandb_run", type=str, default="ctabgan_binary_1")
+    parser.add_argument("--desc", type=str, default="Binary classification")
     parser.add_argument("--hpo", action=argparse.BooleanOptionalAction)
     parser.add_argument("--test_ratio", type=float, default=0.00003)
     parser.add_argument("--categorical_columns", nargs='+', default=['proto', 'tcp_ack', 'tcp_psh', 'tcp_rst', 'tcp_syn', 'tcp_fin', 'tos', 'label', 'attack_type'])
@@ -43,20 +43,20 @@ def argument_parser():
     parser.add_argument("--problem_type", type=dict, default={"Classification": 'label'})
     parser.add_argument("--seed", type=int, default=23)
     parser.add_argument("--save", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--random_dim", type=int, default=100)
+    parser.add_argument("--random_dim", type=int, default=200)
     parser.add_argument("--class_dim", type=str, default=(512,512,512,512))
-    parser.add_argument("--num_channels", type=int, default=64)
-    parser.add_argument("--weight_decay", type=float, default=1e-5)
-    parser.add_argument("-bs", "--batch_size", type=int, default=500)
-    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--num_channels", type=int, default=128)
+    parser.add_argument("--weight_decay", type=float, default=0.00000215862158190158)
+    parser.add_argument("-bs", "--batch_size", type=int, default=1000)
+    parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("-ns", "--num_samples", type=int, default=None)
-    parser.add_argument("-lr", "--lr", type=float, default=2e-4)
+    parser.add_argument("-lr", "--lr", type=float, default=0.0004969483674705974)
     parser.add_argument("-lr_betas", "--lr_betas", type=tuple, default=(0.9, 0.999))
-    parser.add_argument("-eps", "--eps", type=float, default=1e-3)
-    parser.add_argument("--lambda_", type=float, default=10)
-    parser.add_argument("--ip_path", type=str, default="thesisgan/input/new_hpo_data.csv")
+    parser.add_argument("-eps", "--eps", type=float, default=0.00001)
+    parser.add_argument("--lambda_", type=float, default=30)
+    parser.add_argument("--ip_path", type=str, default="thesisgan/input/new_train_data.csv")
     parser.add_argument("--op_path", type=str, default="thesisgan/output/")
-    parser.add_argument("--test_data", type=str, default="thesisgan/input/new_test_data.csv")
+    parser.add_argument("--test_data", type=str, default="thesisgan/input/new_hpo_data.csv")
     parser.add_argument("--n_trials", type=int, default=10)
     parser.add_argument("--cv", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
@@ -194,7 +194,7 @@ def eval(train_data, test_data, sample_data, op_path, cv=False, binary=False):
                 sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
 
     #Model Classification
-    model_dict =  {"Classification":["xgb"]}
+    model_dict =  {"Classification":["xgb","lr","dt","rf","mlp"]}
     result_df, cr = get_utility_metrics(train_data,test_data,sample_data,"MinMax", model_dict, cv=cv, binary=binary)
 
     if cv==False:
@@ -297,29 +297,25 @@ if __name__ == "__main__":
             "lambda_": 30,
             "seed": 23,
             "ip_path": "thesisgan/input/new_train_data.csv",
-            "op_path": "thesisgan/output/ctab_cv",
+            "op_path": "thesisgan/output/ctab_cv_test/",
             "weight_decay": 0.00000215862158190158
         })
         train_data = pd.read_csv(config["ip_path"])
-        # First we will convert the training data label to a binary classification algorithm
-        # where normal traffic is 0 and attack traffic is 1
-
         #move the label at the end of the dataframe
         cols = list(train_data.columns)
         cols.remove("label")
         cols.append("label")
         train_data = train_data[cols]
-        # do a 4 fold cross validation where every fold is one type of attack.
-        # we will first split the data into 5 folds based on the attack type
-        # then we will train the model on 4 folds and evaluate on the 5th fold
-        # we will repeat this process 5 times
-        config.update({"wandb_run": f"CTABGAN_CV_test"})
-        #wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["desc"],
-                            #group="CTABGAN-CV_test", mode="offline")
+        
+        config.update({"wandb_run": f"CTABGAN_CV_test", "desc": "CTABGAN_CV_test run"})
+        wandb.init(project="masterthesis", name=config["wandb_run"], config=config, notes=config["desc"],
+                            group="CTABGAN-CV_test", mode="offline")
         print(f"Starting fold 1")
         test_df = train_data[train_data["attack_type"] == "bruteForce"]
         train_df = train_data[train_data["attack_type"] != "bruteForce"]
         
+        # First we will convert the training data label to a binary classification algorithm
+        # where normal traffic is 0 and attack traffic is 1
         attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
         proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
         label_type_le = {"normal": 0, "attack": 1, "attacker": 1, "victim": 1}
@@ -332,10 +328,10 @@ if __name__ == "__main__":
             dataset["proto"] = dataset["proto"].map(proto_le)
             dataset["tos"] = dataset["tos"].map(tos_le)
             dataset["label"] = dataset["label"].map(label_type_le)
-            
+        
         synthesizer = CTABGANSynthesizer(config)
         start_time = time.time()
-        data_prep = DataPrep(train_data,config["categorical_columns"],config["log_columns"],
+        data_prep = DataPrep(train_df,config["categorical_columns"],config["log_columns"],
                             config["mixed_columns"],["general_columns"],
                             config["non_categorical_columns"],config["integer_columns"],
                         config["problem_type"],config["test_ratio"])
@@ -347,18 +343,40 @@ if __name__ == "__main__":
                                     non_categorical = data_prep.column_types["non_categorical"], 
                                     type=config["problem_type"])
         end_time = time.time()
-        wandb.log({"gan_loss": gan_loss, "fold": 1, "attack_type": "dos"})
+        wandb.log({"gan_loss": gan_loss, "fold": 1, "attack_type": "bruteForce"})
         print('Finished training in',end_time-train_time," seconds.")
         wandb.log({"training_time": end_time-train_time})
         op_path = (config['op_path'] + config['wandb_run'] + "/")
-        syn_data = sample_data(synthesizer, config, op_path, train_df, test_df, data_prep, cv=True)
+        syn_data = sample_data(synthesizer, config, op_path, train_df, data_prep, cv=True)
         eval(train_df, test_df, syn_data, op_path, cv=True, binary=True)
         wandb.finish()
         
     else:
-        print("Training non-hpo model")
-        train_data = pd.read_csv(args.ip_path)
-        test_data = pd.read_csv(args.test_data)
+        config = args.__dict__
+        config.update({
+            "problem_type": {"Classification": 'label'},
+            "random_dim": 200,
+            "epochs":100,
+            "num_channels": 128,
+            "eps": 0.00001,
+            "lr": 0.0004969483674705974,
+            "batch_size": 1000,
+            "lambda_": 30,
+            "seed": 23,
+            "ip_path": "thesisgan/input/new_train_data.csv",
+            "op_path": "thesisgan/output/",
+            "weight_decay": 0.00000215862158190158,
+            "wandb_run": "CTABGAN_binary_1",
+        })
+        print("Training non-hpo model - binary classification 1")
+        train_data = pd.read_csv(config["ip_path"])
+        test_data = pd.read_csv(config["test_data"])
+        
+        cols = list(train_data.columns)
+        cols.remove("label")
+        cols.append("label")
+        train_data = train_data[cols]
+        test_data = test_data[cols]
         
         attack_type_le = {"benign": 0, "bruteForce": 1, "portScan": 2, "pingScan": 3, "dos": 4}
         proto_le = {"TCP": 0, "UDP": 1, "ICMP": 2, "IGMP": 3}
@@ -371,20 +389,14 @@ if __name__ == "__main__":
             dataset["proto"] = dataset["proto"].map(proto_le)
             dataset["tos"] = dataset["tos"].map(tos_le)
             dataset["label"] = dataset["label"].map(label_type_le)
-        
-        cols = list(train_data.columns)
-        cols.remove("label")
-        cols.append("label")
-        train_data = train_data[cols]
-        test_data = test_data[cols]
-        
+                
         #convert args to a dictionary
-        config = args.__dict__
         wandb.init(project="masterthesis",
                     config=config,
-                    group="CTABGAN_new_BEST_MODEL", 
+                    group="CTABGAN_binary", 
                     notes=config["desc"],
-                    mode="offline")
+                    mode="offline",
+                    name=config["wandb_run"])
         synthesizer = CTABGANSynthesizer(config)
         start_time = time.time()
         data_prep = DataPrep(train_data,config["categorical_columns"],config["log_columns"],

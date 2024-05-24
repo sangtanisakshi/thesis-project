@@ -217,19 +217,6 @@ def eval(train_data, test_data, sample_data, op_path, binary=False):
             if at not in sample_data["attack_type"].unique():
                 #add a row with the attack type
                 sample_data = pd.concat([sample_data,train_data[train_data["attack_type"] == at].sample(3)], ignore_index=True)
-                
-    # else:
-    #     #if the synthetic data has only one unique value for the attack type, add a row with the attack type
-    #     sample_data_value_counts = sample_data["label"].value_counts()
-    #     for i in range(len(sample_data_value_counts)):
-    #         if sample_data_value_counts[i] == 1:
-    #             at = sample_data_value_counts.index[i]
-    #             sample_data = pd.concat([sample_data,train_data[train_data["label"] == at].sample(3)], ignore_index=True)
-
-    #     for at in test_data["label"].unique():
-    #         if at not in sample_data["label"].unique():
-    #             #add a row with the attack type
-    #             sample_data = pd.concat([sample_data,train_data[train_data["label"] == at].sample(3)], ignore_index=True) 
     
     
     #Model Classification
@@ -405,9 +392,9 @@ if __name__ == "__main__":
             'G_learning_term': 6, 
             'D_learning_term': 6, 
             'likelihood_learn_term': 3,
-            'epochs': 3,
-            'description': 'test - binary - params of 1m7msbiu (trial 4)',
-            'wandb_run': 'test_itgan_binary',
+            'epochs': 50,
+            'description': 'binary - params of 1m7msbiu (trial 4)',
+            'wandb_run': 'itgan_binary_50ep',
             'binary': True
         }
         arg.update({"data_name": "malware_binary"})
@@ -416,11 +403,11 @@ if __name__ == "__main__":
         config.update(hpo_params)
         train_df, test_df, meta, categoricals, ordinals = load_dataset(config["data_name"], benchmark=True)
         print("Data Loaded")
-        logging.basicConfig(filename='it/test_itgan_binary', level=logging.DEBUG)
+        logging.basicConfig(filename='it/binary_classification_50ep', level=logging.DEBUG)
         logging.debug("HPO started manually")
         G_args["hdim_factor"] = float(hpo_params["hdim_factor"])
         logging.info("Config: ", config)
-        logging.info("Started binary trial")
+        logging.info("Started binary classification run")
         wb_run = wandb.init(project="masterthesis", config=config, mode="offline",
                             group="itgan_best_run", notes=config['description'],
                             name=config["wandb_run"])
